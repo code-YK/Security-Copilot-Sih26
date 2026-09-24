@@ -1,0 +1,76 @@
+# --- Web framework -----------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# --- Settings / validation -----------------------------------------------------
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# --- HTTP client (threat intel) -----------------------------------------------------
+httpx==0.28.1
+
+# --- Agent orchestration (spec section 2) -----------------------------------------------------
+# The agent's LLM is OpenRouter (OpenAI-compatible), driven via langchain-openai
+# — see backend/agent/llm_client.py. The versions below are verified working
+# together with the pinned langchain-core.
+langgraph==1.2.9
+langchain-core==1.5.1
+langchain-openai==1.4.1
+openai==2.51.0
+
+# --- Tool: inspect_website (spec section 4.1) -----------------------------------------------------
+playwright==1.49.1
+
+# --- Tool: domain_reputation (spec section 4.2) -----------------------------------------------------
+python-whois==0.9.5
+
+# --- Tool: content_classifier (spec section 4.3) -----------------------------------------------------
+onnxruntime==1.20.1
+huggingface_hub==0.27.1
+
+# --- Tool: web_search (not in the original spec — added 2026-07-25) -----------------------------------------------------
+# Keyless DuckDuckGo search, no signup.
+ddgs==9.14.4
+
+# --- Email forensics: SPF/DMARC (DNS) + DKIM verification (tools/auth_validator.py) ---
+checkdmarc==6.0.3
+dkimpy==1.1.8
+dnspython==2.8.0
+
+# --- Origin geolocation (tools/geolocate.py). The GeoLite2 .mmdb files are optional downloads. ---
+geoip2==5.3.0
+
+# --- Attachment static analysis (tools/attachment_scanner.py). pyclamd needs a running ClamAV
+# daemon to do anything; without one the scan is skipped. filetype is pure Python (no libmagic). ---
+filetype==1.2.0
+oletools==0.60.2
+pyclamd==0.4.0
+
+# --- Identity correlation graph (tools/correlation_graph.py); campaigns use scikit-learn below ---
+networkx==3.7
+
+# --- PII masking of stored email bodies (utils/privacy.py). Also run once:
+#     python -m spacy download en_core_web_sm
+# Without the model, masking is skipped with a warning. ---
+presidio-analyzer==2.2.364
+presidio-anonymizer==2.2.364
+
+# --- Machine learning (BERT content classifier + SecureBERT case memory) -----------------------------------------------------
+# IMPORTANT: torch is intentionally NOT listed here — required by
+# transformers for the ealvaradob BERT model. Install it yourself FIRST,
+# with the command matching your hardware, then run
+# `pip install -r requirements.txt` for everything else.
+#   CPU only:   pip install torch
+#   NVIDIA GPU: pip install torch --index-url https://download.pytorch.org/whl/cu128
+transformers==4.47.1
+scikit-learn==1.6.0
+numpy==2.2.1
+joblib==1.4.2
+pandas==2.2.3
+
+# --- Logging / utils -----------------------------------------------------
+python-dotenv==1.0.1
+
+# --- Testing -----------------------------------------------------
+pytest==8.3.4
+pytest-asyncio==0.25.0
