@@ -1,0 +1,16 @@
+Received: by 2002:a05:6a10:1234:b0:5a1:aaaa:bbbb with SMTP id x12csp123456pxb;
+        Mon, 22 Sep 2026 03:10:05 -0700 (PDT)
+Received: from mail-sor-f41.google.com (mail-sor-f41.google.com. [209.85.220.41])
+        by mx.google.com with SMTPS id a1sor123456qkb.11.2026.09.22.03.10.04
+        for <friend@gmail.com>; Mon, 22 Sep 2026 03:10:04 -0700 (PDT)
+Return-Path: <alice@gmail.com>
+From: Alice <alice@gmail.com>
+To: friend@gmail.com
+Subject: Lunch tomorrow?
+Date: Mon, 22 Sep 2026 15:40:01 +0530
+Message-ID: <CAF12345abcdef@mail.gmail.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Hey, are we still on for lunch tomorrow at 1? Let me know.
+- Alice

@@ -1,0 +1,32 @@
+Received: from mx.victim-corp.in (mx.victim-corp.in [10.0.0.5])
+	by mailstore.victim-corp.in with LMTP id abc123; Mon, 22 Sep 2026 10:15:09 +0530
+Received: from mail-relay.secure-paypa1.com (unknown [185.220.101.34])
+	by mx.victim-corp.in (Postfix) with ESMTP id 4F1A2B3C; Mon, 22 Sep 2026 10:15:02 +0530
+Received: from [192.168.1.20] (unknown [185.220.101.34])
+	by mail-relay.secure-paypa1.com (Postfix) with ESMTPSA id 9988; Mon, 22 Sep 2026 10:20:40 +0530
+Return-Path: <bounce@secure-paypa1.com>
+From: "PayPal Security" <service@paypal.com>
+Reply-To: account-review@secure-paypa1.com
+To: finance@victim-corp.in
+Subject: Urgent: your account has been limited
+Date: Mon, 22 Sep 2026 10:14:55 +0530
+Message-ID: <20260922101455.1234@secure-paypa1.com>
+Authentication-Results: mx.victim-corp.in; spf=fail smtp.mailfrom=secure-paypa1.com; dkim=none; dmarc=fail header.from=paypal.com
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY1"
+
+--BOUNDARY1
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>Dear customer,</p><p>We noticed unusual activity. Your account will be suspended within 24 hours unless you verify your identity.</p>
+<p><a href=3D"http://paypal-account-verify.secure-paypa1.com/login?id=3D8812">Verify now</a></p></body></html>
+
+--BOUNDARY1
+Content-Type: application/pdf; name="invoice.pdf.exe"
+Content-Disposition: attachment; filename="invoice.pdf.exe"
+Content-Transfer-Encoding: base64
+
+TVqQAAMAAAAEAAAA//8AALgAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAA4fug4AtAnNIbgBTM0hVGhpcyBwcm9ncmFtIGNhbm5vdCBiZSBydW4gaW4gRE9TIG1vZGUuDQ0KJAAAAAAAAAA=
+
+--BOUNDARY1--
