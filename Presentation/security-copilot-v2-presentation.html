@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Security-Copilot v2 — SIH26106</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+:root{
+  --bg:#080D16; --panel:#0F1622; --panel2:#16202F; --raised:#1C2839;
+  --border:rgba(128,150,185,.13); --border-strong:rgba(128,150,185,.28);
+  --text:#E8EDF5; --muted:#828FA6; --dim:#525C72;
+  --cyan:#4EC6D2; --cyan-dim:rgba(78,198,210,.12);
+  --amber:#E0A244; --amber-dim:rgba(224,162,68,.13);
+  --red:#E85D62; --red-dim:rgba(232,93,98,.13);
+  --green:#3EC48D; --green-dim:rgba(62,196,141,.13);
+  --radius:10px;
+  --disp:'Space Grotesk',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{background:var(--bg); color:var(--text); font-family:var(--body); overflow:hidden; position:relative;}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+.bg-grid{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(78,198,210,.06), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 100%, rgba(61,147,160,.05), transparent 60%),
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size:100% 100%,100% 100%,64px 64px,64px 64px; opacity:.5;
+}
+
+/* trace strip */
+.trace-strip{position:fixed; top:0; left:0; right:0; height:34px; z-index:50; display:flex; align-items:center; gap:10px; padding:0 18px;
+  background:linear-gradient(180deg, rgba(8,13,22,.96), rgba(8,13,22,.85)); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);
+  font-family:var(--mono); font-size:11px; color:var(--dim); letter-spacing:.04em;}
+.trace-strip .dot{width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); flex-shrink:0;}
+.trace-strip.alert .dot{background:var(--red); box-shadow:0 0 8px var(--red);}
+.trace-strip canvas{flex:1; height:18px; max-width:340px;}
+.trace-strip .label{color:var(--muted); white-space:nowrap;}
+.trace-strip .spacer{flex:1;}
+
+/* rail + nav */
+.rail{position:fixed; left:22px; top:50%; transform:translateY(-50%); z-index:40; display:flex; flex-direction:column; gap:9px;}
+.rail button{all:unset; cursor:pointer; width:9px; height:9px; border-radius:50%; background:var(--dim); transition:all .25s; position:relative;}
+.rail button:hover{background:var(--muted);}
+.rail button.active{background:var(--cyan); box-shadow:0 0 0 3px var(--cyan-dim); height:22px; border-radius:5px;}
+.rail button .tip{position:absolute; left:20px; top:50%; transform:translateY(-50%); font-family:var(--mono); font-size:10.5px; color:var(--muted); white-space:nowrap;
+  opacity:0; transition:opacity .15s; pointer-events:none; background:var(--panel2); padding:3px 8px; border-radius:5px; border:1px solid var(--border);}
+.rail button:hover .tip{opacity:1;}
+.navctl{position:fixed; right:26px; bottom:26px; z-index:40; display:flex; gap:8px; align-items:center;}
+.navctl button{all:unset; cursor:pointer; width:42px; height:42px; border-radius:50%; background:var(--panel2); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center; color:var(--text); transition:all .2s;}
+.navctl button:hover{background:var(--raised); border-color:var(--border-strong);}
+.navctl button:disabled{opacity:.3; cursor:default;}
+.navctl .count{font-family:var(--mono); font-size:11px; color:var(--muted); padding:0 10px; min-width:52px; text-align:center;}
+.navctl .fs{width:36px; height:36px;}
+.footer-hint{position:fixed; bottom:26px; left:90px; font-family:var(--mono); font-size:10.5px; color:var(--dim); z-index:5;}
+
+/* screens */
+.deck{position:fixed; inset:0; z-index:1;}
+.screen{position:absolute; inset:0; padding:78px 90px 60px 90px; display:flex; flex-direction:column; justify-content:center;
+  opacity:0; pointer-events:none; transform:translateX(24px); transition:opacity .38s ease, transform .38s ease; overflow-y:auto;}
+.screen.active{opacity:1; pointer-events:auto; transform:translateX(0);}
+.screen.leaving{transform:translateX(-24px);}
+.screen.tall{justify-content:flex-start;}
+.eyebrow{font-family:var(--mono); font-size:12px; color:var(--cyan); letter-spacing:.14em; text-transform:uppercase; display:flex; align-items:center; gap:10px; margin-bottom:14px;}
+.eyebrow::before{content:''; width:22px; height:1px; background:var(--cyan);}
+h1.title{font-family:var(--disp); font-weight:700; font-size:clamp(30px,4vw,54px); line-height:1.05; letter-spacing:-.01em; margin-bottom:14px;}
+h1.title.s{font-size:clamp(24px,2.6vw,34px);}
+h2.sub{font-family:var(--body); font-weight:400; font-size:clamp(14px,1.3vw,18px); color:var(--muted); max-width:820px; line-height:1.55;}
+.section-num{position:absolute; top:78px; right:90px; font-family:var(--mono); font-size:12px; color:var(--dim);}
+
+/* components */
+.grid{display:grid; gap:16px;}
+.g4{grid-template-columns:repeat(4,1fr);} .g3{grid-template-columns:repeat(3,1fr);} .g2{grid-template-columns:repeat(2,1fr);}
+.g6{grid-template-columns:repeat(3,1fr);}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:20px;}
+.card:hover{border-color:var(--border-strong);}
+.kpi{padding:22px 20px;}
+.kpi .val{font-family:var(--disp); font-size:clamp(26px,2.6vw,38px); font-weight:700; color:var(--cyan);}
+.kpi .lbl{font-family:var(--mono); font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:6px;}
+.kpi .src{font-size:10.5px; color:var(--dim); margin-top:10px;}
+.pill{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10.5px; padding:3px 9px; border-radius:20px; border:1px solid var(--border); color:var(--muted);}
+.pill.live{color:var(--green); border-color:rgba(62,196,141,.35); background:var(--green-dim);}
+.pill.demo{color:var(--amber); border-color:rgba(224,162,68,.35); background:var(--amber-dim);}
+.pill.bad{color:var(--red); border-color:rgba(232,93,98,.35); background:var(--red-dim);}
+.chip-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+.two-col{display:grid; grid-template-columns:1.1fr .9fr; gap:22px; align-items:start;}
+.detail-box{margin-top:16px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; font-size:13.5px; line-height:1.6; min-height:70px;}
+.detail-box .k{font-family:var(--mono); font-size:10px; color:var(--cyan); text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:5px;}
+.scroll-note, .mm-caption{font-size:11px; color:var(--dim); font-family:var(--mono); margin-top:8px;}
+.chartwrap{position:relative; height:220px;}
+ul.plain{padding-left:18px; font-size:13px; line-height:1.9;}
+code, .mono{font-family:var(--mono); font-size:.92em;}
+
+/* incident cards */
+.incident{padding:18px; display:flex; flex-direction:column; gap:8px;}
+.incident .amt{font-family:var(--disp); font-size:26px; font-weight:700; color:var(--red);}
+.incident .row{display:flex; gap:8px; font-size:12px;}
+.incident .row .k{color:var(--dim); width:56px; flex-shrink:0; font-family:var(--mono); font-size:10.5px; text-transform:uppercase; padding-top:2px;}
+.incident .row .v{line-height:1.5;}
+
+/* attack flow */
+.aflow{display:flex; align-items:stretch; margin-top:26px;}
+.aflow .anode{flex:1 1 0; min-width:0; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:14px 13px; cursor:pointer; transition:all .2s; display:flex; flex-direction:column; gap:7px; min-height:132px;}
+.aflow .anode:hover, .aflow .anode.on{border-color:var(--cyan); background:var(--panel2); box-shadow:0 0 0 1px var(--cyan-dim);}
+.aflow .anode .an{font-family:var(--mono); font-size:10px; color:var(--dim);}
+.aflow .anode .at{font-family:var(--disp); font-weight:600; font-size:13px; line-height:1.28;}
+.aflow .anode .atag{margin-top:auto; align-self:flex-start; font-family:var(--mono); font-size:8.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--cyan); border:1px solid rgba(78,198,210,.35); background:var(--cyan-dim); border-radius:20px; padding:3px 7px;}
+.aflow .aconn{flex:0 0 30px; align-self:center; position:relative; height:24px;}
+.aflow .aconn::before{content:''; position:absolute; left:3px; right:9px; top:50%; height:2px; background:var(--cyan); opacity:.55;}
+.aflow .aconn::after{content:''; position:absolute; right:4px; top:50%; transform:translateY(-50%); border-left:8px solid var(--cyan); border-top:5px solid transparent; border-bottom:5px solid transparent;}
+
+/* mermaid stage + modal */
+.seg{display:inline-flex; gap:6px; background:var(--panel); border:1px solid var(--border); border-radius:9px; padding:4px; flex-wrap:wrap;}
+.seg button{all:unset; cursor:pointer; padding:8px 16px; border-radius:6px; font-size:12.5px; font-family:var(--mono); color:var(--muted);}
+.seg button.on{background:var(--cyan-dim); color:var(--cyan);}
+.mm-stage{margin-top:14px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; overflow:hidden; height:46vh; min-height:300px; display:flex; align-items:center; justify-content:center;}
+.mm-wrap{width:100%; height:100%; display:flex; align-items:center; justify-content:center;}
+.mm-wrap.hidden{display:none;}
+.mm-wrap .mermaid{width:100%; height:100%; display:flex; align-items:center; justify-content:center;}
+.mm-wrap svg{width:auto !important; max-width:100% !important; height:auto !important; max-height:100% !important;}
+.mm-stage .edgeLabel, .mm-stage .edgeLabel *{font-family:var(--mono) !important; fill:var(--muted) !important; color:var(--muted) !important;}
+.mm-barline{display:flex; align-items:center; gap:14px; margin-top:10px;}
+.mm-barline .mm-caption{margin-top:0; flex:1;}
+.mm-expand{all:unset; cursor:pointer; font-weight:600; font-size:12.5px; padding:9px 16px; border-radius:8px; background:var(--cyan-dim); color:var(--cyan); border:1px solid rgba(78,198,210,.4); white-space:nowrap;}
+.mm-expand:hover{background:rgba(78,198,210,.2);}
+.modal{position:fixed; inset:0; z-index:200; display:none; align-items:center; justify-content:center; background:rgba(4,8,14,.82); backdrop-filter:blur(5px);}
+.modal.open{display:flex;}
+.modal-inner{width:93vw; height:90vh; background:var(--panel); border:1px solid var(--border-strong); border-radius:14px; display:flex; flex-direction:column; overflow:hidden;}
+.modal-head{display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border);}
+.modal-head .mt{font-family:var(--disp); font-weight:600; font-size:14.5px;}
+.modal-head .spacer{flex:1;}
+.modal-ctrls{display:flex; gap:6px;}
+.modal-ctrls button{all:unset; cursor:pointer; min-width:34px; height:34px; padding:0 10px; border-radius:8px; background:var(--panel2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:13px;}
+.modal-ctrls .zpct{min-width:56px; color:var(--muted); pointer-events:none;}
+.modal-ctrls .mclose{background:var(--red-dim); border-color:rgba(232,93,98,.4); color:var(--red);}
+.modal-stage{flex:1; overflow:hidden; position:relative; cursor:grab;
+  background-image:linear-gradient(rgba(128,150,185,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(128,150,185,.06) 1px, transparent 1px); background-size:40px 40px;}
+.modal-stage.grabbing{cursor:grabbing;}
+.modal-canvas{position:absolute; top:50%; left:50%; transform-origin:center center;}
+.modal-canvas svg{width:auto !important; height:auto !important; max-width:none !important; max-height:none !important;}
+.modal-hint{position:absolute; left:14px; bottom:12px; font-family:var(--mono); font-size:10.5px; color:var(--dim);}
+
+/* coverage matrix */
+.pscomp{padding:16px; display:flex; flex-direction:column; gap:8px;}
+.pscomp .n{font-family:var(--mono); font-size:10px; color:var(--dim);}
+.pscomp .t{font-family:var(--disp); font-weight:600; font-size:15px;}
+.pscomp .m{font-family:var(--mono); font-size:11px; color:var(--cyan); line-height:1.6;}
+.pscomp .d{font-size:12px; color:var(--muted); line-height:1.5;}
+.ok{color:var(--green); font-family:var(--mono); font-size:11px;}
+
+/* header trace */
+.hops{display:flex; flex-direction:column; gap:0; margin-top:6px;}
+.hop{display:grid; grid-template-columns:34px 1fr auto; gap:12px; align-items:center; padding:12px 14px; background:var(--panel); border:1px solid var(--border); border-radius:9px; cursor:pointer; transition:all .18s;}
+.hop:hover, .hop.on{border-color:var(--cyan); background:var(--panel2);}
+.hop .i{font-family:var(--mono); font-size:11px; color:var(--dim);}
+.hop .h{font-size:13px;} .hop .h .ip{font-family:var(--mono); color:var(--cyan);}
+.hop .ts{font-family:var(--mono); font-size:10.5px; color:var(--dim); margin-top:3px;}
+.hopline{height:14px; margin-left:30px; border-left:2px dashed var(--border-strong);}
+.email-raw{font-family:var(--mono); font-size:11px; line-height:1.65; color:var(--muted); white-space:pre-wrap; background:var(--panel); border:1px solid var(--border); border-radius:9px; padding:14px; max-height:46vh; overflow:auto;}
+.email-raw .hl{color:var(--amber);} .email-raw .bad{color:var(--red);}
+
+/* auth + calculator */
+.authgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+.authcard{padding:16px;}
+.authcard .t{font-family:var(--disp); font-weight:700; font-size:20px;}
+.authcard .q{font-size:12px; color:var(--muted); margin-top:4px; line-height:1.5;}
+.authcard .how{font-family:var(--mono); font-size:10.5px; color:var(--dim); margin-top:10px;}
+.res{font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; display:inline-block; margin-top:10px;}
+.res.pass{color:var(--green); background:var(--green-dim);} .res.fail{color:var(--red); background:var(--red-dim);} .res.none{color:var(--muted); background:var(--panel2);}
+.calc{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px;}
+.calc label{font-family:var(--mono); font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; display:flex; flex-direction:column; gap:5px;}
+.calc select{all:unset; text-transform:none; font-family:var(--mono); font-size:12px; padding:7px 10px; border-radius:7px; background:var(--panel2); border:1px solid var(--border); color:var(--text); cursor:pointer;}
+.calc .tog{flex-direction:row; align-items:center; gap:8px; text-transform:none; font-family:var(--body); font-size:12.5px; color:var(--text); letter-spacing:0; cursor:pointer;}
+.calc input[type=checkbox]{accent-color:var(--cyan); width:15px; height:15px;}
+.calc input[type=range]{accent-color:var(--cyan);}
+.verdict-out .lab{font-family:var(--disp); font-weight:700; font-size:30px; text-transform:capitalize;}
+.riskbar{height:9px; border-radius:6px; background:var(--panel2); margin-top:10px; overflow:hidden;}
+.riskbar span{display:block; height:100%; border-radius:6px; transition:width .3s, background .3s;}
+.factors{margin-top:12px; font-size:12px; line-height:1.7; color:var(--muted); padding-left:16px;}
+.attr{margin-top:12px; font-size:12.5px; line-height:1.55;}
+.attr b{color:var(--amber); font-family:var(--mono); font-weight:500;}
+
+/* taxonomy */
+.tax{padding:14px; border-left:3px solid var(--border-strong);}
+.tax .t{font-family:var(--disp); font-weight:600; font-size:15px;}
+.tax .d{font-size:12px; color:var(--muted); margin-top:5px; line-height:1.5;}
+
+/* geo */
+#geoMap{height:340px; border-radius:9px; border:1px solid var(--border); background:#0b1320;}
+.kv{display:grid; grid-template-columns:120px 1fr; gap:6px 12px; font-size:12.5px;}
+.kv .k{font-family:var(--mono); font-size:10.5px; color:var(--dim); text-transform:uppercase; padding-top:2px;}
+.src-row{display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px;}
+.src-row:last-child{border-bottom:0;}
+.src-row .m{font-family:var(--mono); font-size:10.5px; color:var(--dim); text-align:right;}
+
+/* attachment */
+.fileviz{display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-family:var(--mono); font-size:13px;}
+.fileviz .part{padding:10px 14px; border-radius:8px; border:1px solid var(--border); background:var(--panel2);}
+.fileviz .part.fake{color:var(--muted);} .fileviz .part.real{color:var(--red); border-color:rgba(232,93,98,.45); background:var(--red-dim);}
+.check-row{display:grid; grid-template-columns:24px 1fr auto; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); font-size:12.5px; align-items:start;}
+.check-row:last-child{border-bottom:0;}
+
+/* screenshots */
+.shot{border-radius:9px; border:1px solid var(--border); display:block; width:100%;}
+.shot-scroll{max-height:52vh; overflow:auto; border-radius:9px; border:1px solid var(--border);}
+.shot-scroll img{width:100%; display:block;}
+
+table.cmp{width:100%; border-collapse:collapse; font-size:12.5px;}
+table.cmp th{text-align:left; font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:9px 12px; border-bottom:1px solid var(--border-strong);}
+table.cmp td{padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top;}
+table.cmp td.m{font-family:var(--mono); font-size:11.5px; color:var(--cyan);}
+
+.flow{display:flex; align-items:stretch; flex-wrap:wrap;}
+.flow .node{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; min-width:130px;}
+.flow .node .n{font-family:var(--mono); font-size:10px; color:var(--dim);}
+.flow .node .t{font-family:var(--disp); font-weight:600; font-size:14.5px; margin-top:4px;}
+.flow .arrow{display:flex; align-items:center; justify-content:center; width:34px; color:var(--dim);}
+::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:var(--panel2); border-radius:4px;}
+.leaflet-container{font-family:var(--body);}
+/* OSM tiles darkened to match the deck */
+.dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.6);}
+
+@media (max-width:980px){
+  .screen{padding:70px 26px 90px 26px;}
+  .g4,.g3,.g6{grid-template-columns:repeat(2,1fr);}
+  .g2,.two-col,.authgrid,.calc{grid-template-columns:1fr;}
+  .rail{display:none;}
+  .aflow{flex-direction:column;} .aflow .anode{min-height:auto;}
+  .aflow .aconn{width:100%; transform:rotate(90deg); margin:2px 0;}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="trace-strip" id="traceStrip">
+  <span class="dot"></span>
+  <span class="label" id="traceLabel">MAIL FORENSICS — nominal</span>
+  <canvas id="traceCanvas" width="340" height="18"></canvas>
+  <span class="spacer"></span>
+  <span class="label" id="clockLabel">security-copilot v2 // SIH26106</span>
+</div>
+<div class="rail" id="rail"></div>
+<div class="navctl">
+  <button id="prevBtn" title="Previous (←)">‹</button>
+  <span class="count" id="countLabel">01</span>
+  <button id="nextBtn" title="Next (→)">›</button>
+  <button class="fs" id="fsBtn" title="Fullscreen (F)">⛶</button>
+</div>
+<div class="footer-hint">← → to navigate · F fullscreen</div>
+<div class="deck" id="deck"></div>
+
+<div class="modal" id="archModal">
+  <div class="modal-inner">
+    <div class="modal-head">
+      <span class="mt" id="archModalTitle">Architecture</span>
+      <span class="spacer"></span>
+      <div class="modal-ctrls">
+        <button id="mzOut">−</button><button class="zpct" id="mzPct">100%</button><button id="mzIn">+</button>
+        <button id="mzReset">Reset</button><button class="mclose" id="mzClose">✕</button>
+      </div>
+    </div>
+    <div class="modal-stage" id="archModalStage">
+      <div class="modal-canvas" id="archModalCanvas"></div>
+      <div class="modal-hint">Drag to pan · scroll to zoom · Esc to close</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SECTIONS = [
+  {id:'opening', label:'Opening'},
+  {id:'problem', label:'The Problem'},
+  {id:'incidents', label:'Real-World Incidents'},
+  {id:'ps', label:'Problem Statement'},
+  {id:'attack', label:'Anatomy of a Spoofed Email'},
+  {id:'architecture', label:'Architecture'},
+  {id:'headers', label:'Header Forensics'},
+  {id:'auth', label:'SPF · DKIM · DMARC'},
+  {id:'geo', label:'Origin Traceability'},
+  {id:'attach', label:'Attachment Analysis'},
+  {id:'verdict', label:'Verdict & Attribution'},
+  {id:'correlation', label:'Identity Correlation'},
+  {id:'dashboard', label:'Dashboard & Reporting'},
+  {id:'privacy', label:'Privacy & Legal'},
+  {id:'coverage', label:'PS Coverage'},
+  {id:'feasibility', label:'Feasibility & Stack'},
+  {id:'limitations', label:'Limitations & Roadmap'},
+  {id:'close', label:'Takeaway'},
+];
+let current = 0;
+const pad = n => String(n).padStart(2,'0');
+
+const rail = document.getElementById('rail');
+SECTIONS.forEach((s,i)=>{
+  const b = document.createElement('button');
+  b.innerHTML = `<span class="tip">${pad(i+1)} — ${s.label}</span>`;
+  b.addEventListener('click', ()=>goTo(i));
+  rail.appendChild(b);
+});
+function updateRail(){
+  [...rail.children].forEach((b,i)=>b.classList.toggle('active', i===current));
+  document.getElementById('countLabel').textContent = `${pad(current+1)} / ${SECTIONS.length}`;
+  document.getElementById('prevBtn').disabled = current===0;
+  document.getElementById('nextBtn').disabled = current===SECTIONS.length-1;
+}
+const onEnter = {};
+function goTo(i){
+  if(i<0 || i>=SECTIONS.length || i===current) return;
+  const screens = document.querySelectorAll('.screen');
+  screens[current].classList.remove('active'); screens[current].classList.add('leaving');
+  screens[i].classList.remove('leaving');
+  requestAnimationFrame(()=> screens[i].classList.add('active'));
+  const prev = current; setTimeout(()=> screens[prev].classList.remove('leaving'), 400);
+  current = i; updateRail();
+  const id = SECTIONS[i].id;
+  document.getElementById('traceStrip').classList.toggle('alert', ['attack','headers','auth','attach'].includes(id));
+  document.getElementById('traceLabel').textContent =
+    ['attack','headers','auth','attach'].includes(id) ? 'MAIL FORENSICS — spoofed message under analysis' : 'MAIL FORENSICS — nominal';
+  if(onEnter[id]) onEnter[id]();
+}
+document.getElementById('prevBtn').addEventListener('click', ()=>goTo(current-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>goTo(current+1));
+document.addEventListener('keydown', e=>{
+  if(document.getElementById('archModal').classList.contains('open')){ if(e.key==='Escape') closeArchModal(); return; }
+  if(['INPUT','SELECT'].includes(document.activeElement.tagName)) return;
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); goTo(current+1); }
+  if(e.key==='ArrowLeft') goTo(current-1);
+  if(e.key.toLowerCase()==='f') toggleFullscreen();
+});
+document.getElementById('fsBtn').addEventListener('click', toggleFullscreen);
+function toggleFullscreen(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); }
+
+const tctx = document.getElementById('traceCanvas').getContext('2d');
+let traceData = Array.from({length:60}, ()=> 3+Math.random()*4);
+(function drawTrace(){
+  const alert = document.getElementById('traceStrip').classList.contains('alert');
+  traceData.shift(); traceData.push(alert ? 2+Math.random()*14 : 3+Math.random()*4);
+  tctx.clearRect(0,0,340,18); tctx.beginPath();
+  traceData.forEach((v,i)=>{ const x=i*(340/59), y=18-v; i===0 ? tctx.moveTo(x,y) : tctx.lineTo(x,y); });
+  tctx.strokeStyle = alert ? '#E85D62' : '#4EC6D2'; tctx.lineWidth = 1.4; tctx.stroke();
+  requestAnimationFrame(drawTrace);
+})();
+
+const deck = document.getElementById('deck');
+function screenWrap(i, html, cls=''){
+  const el = document.createElement('section');
+  el.className = 'screen' + (i===0 ? ' active' : '') + (cls ? ' '+cls : '');
+  el.dataset.id = SECTIONS[i].id;
+  el.innerHTML = `<div class="section-num">${pad(i+1)} / ${SECTIONS.length}</div>` + html;
+  deck.appendChild(el);
+}
+
+/* ---------- 1. OPENING ---------- */
+screenWrap(0, `
+  <div class="eyebrow">Smart India Hackathon 2026 · SIH26106 · AICTE Cyber Security Cell</div>
+  <h1 class="title">Security-Copilot v2<br>Email Forensic Intelligence</h1>
+  <h2 class="sub">AI-powered email threat detection, geolocation and forensic intelligence. Drop in a raw email and a
+  LangGraph agent traces where it really came from, checks whether the sender is who it claims to be, inspects every
+  link and attachment, and returns a classified, attributed, explainable verdict with a forensic report.</h2>
+  <div style="margin-top:34px; padding:16px 20px; border-left:2px solid var(--cyan); background:var(--panel); max-width:680px; font-family:var(--disp); font-size:16px; line-height:1.5;">
+    "Not just <i>is this phishing?</i>, but <i>where did it come from, who sent it, and what else is it connected to?</i>"
+  </div>
+  <div class="chip-row">
+    <span class="pill">Theme: Blockchain &amp; Cybersecurity</span>
+    <span class="pill">LangGraph agent · 10 forensic &amp; investigation tools</span>
+    <span class="pill">SPF · DKIM · DMARC</span>
+    <span class="pill">Geo + VPN / TOR correlation</span>
+    <span class="pill">Campaign clustering</span>
+  </div>
+`);
+
+/* ---------- 2. PROBLEM ---------- */
+screenWrap(1, `
+  <div class="eyebrow">01 · The Problem</div>
+  <h1 class="title s">Email is still the front door for cybercrime</h1>
+  <div class="grid g4" style="margin-top:22px;">
+    <div class="card kpi"><div class="val">$16.6B</div><div class="lbl">Total reported cybercrime losses, 2024</div><div class="src">FBI IC3 2024 Internet Crime Report</div></div>
+    <div class="card kpi"><div class="val">193,407</div><div class="lbl">Phishing / spoofing complaints — the #1 category</div><div class="src">FBI IC3 2024 Internet Crime Report</div></div>
+    <div class="card kpi"><div class="val">$2.7B</div><div class="lbl">Lost to business email compromise alone</div><div class="src">FBI IC3 2024 Internet Crime Report</div></div>
+    <div class="card kpi"><div class="val">+33%</div><div class="lbl">Year-over-year rise in total losses</div><div class="src">FBI IC3 2024 Internet Crime Report</div></div>
+  </div>
+  <div class="two-col" style="margin-top:26px;">
+    <div class="card"><div class="chartwrap"><canvas id="problemChart"></canvas></div></div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">The investigation gap</div>
+      <p style="font-size:13.5px; line-height:1.7;">Spam filters answer one question: <i>block or deliver?</i> When a
+      suspicious email does land, an investigator still has to read raw headers by hand, check SPF/DKIM/DMARC, look up
+      the origin IP, work out whether it came through a VPN or TOR, and connect it to earlier cases. That work is slow,
+      needs specialists, and rarely produces evidence that holds up. SIH26106 asks for that whole workflow to be automated.</p>
+      <div class="chip-row"><span class="pill">Source: ic3.gov, 2024 Internet Crime Report</span></div>
+    </div>
+  </div>
+`);
+
+/* ---------- 3. INCIDENTS ---------- */
+screenWrap(2, `
+  <div class="eyebrow">02 · Real-World Incidents</div>
+  <h1 class="title s">When one convincing email is enough</h1>
+  <div class="grid g3" style="margin-top:22px;">
+    <div class="card incident">
+      <div class="amt">$100M+</div>
+      <div class="row"><span class="k">Target</span><span class="v">Employees at Google and Facebook</span></div>
+      <div class="row"><span class="k">Method</span><span class="v">Fake invoices from a spoofed supplier persuaded staff to wire funds to attacker-controlled accounts</span></div>
+      <div class="row"><span class="k">Forensic</span><span class="v">Sender-domain authentication and Reply-To mismatch are exactly the signals that expose this pattern</span></div>
+      <span class="pill" style="align-self:flex-start;">Reuters / Fortune reporting</span>
+    </div>
+    <div class="card incident">
+      <div class="amt">£47M</div>
+      <div class="row"><span class="k">Target</span><span class="v">UK tax authority (HMRC) customer accounts</span></div>
+      <div class="row"><span class="k">Method</span><span class="v">Phishing harvested access to 100,000+ taxpayer accounts to claim government payments</span></div>
+      <div class="row"><span class="k">Forensic</span><span class="v">Individual messages looked routine — linking cases by shared infrastructure reveals the campaign</span></div>
+      <span class="pill" style="align-self:flex-start;">Reuters, June 2026</span>
+    </div>
+    <div class="card incident">
+      <div class="amt">€5M</div>
+      <div class="row"><span class="k">Target</span><span class="v">Ireland's National Treasury Management Agency</span></div>
+      <div class="row"><span class="k">Method</span><span class="v">A phishing attack led to the loss and a review of security protocols</span></div>
+      <div class="row"><span class="k">Forensic</span><span class="v">After the fact, investigators need origin, route and attribution — fast and documented</span></div>
+      <span class="pill" style="align-self:flex-start;">Reuters, July 2026</span>
+    </div>
+  </div>
+  <p class="scroll-note" style="margin-top:16px;">Figures as reported at the time of publication.</p>
+`);
+
+/* ---------- 4. PROBLEM STATEMENT ---------- */
+screenWrap(3, `
+  <div class="eyebrow">03 · Problem Statement SIH26106</div>
+  <h1 class="title s">Six components the platform must deliver</h1>
+  <h2 class="sub">"AI-Powered Email Threat Detection, GeoLocation and Forensic Intelligence Platform" — AICTE Cyber
+  Security Cell. Click a component to see how v2 answers it.</h2>
+  <div class="grid g6" id="psGrid" style="margin-top:20px;"></div>
+  <div class="detail-box" id="psDetail">Select a component above.</div>
+`);
+
+/* ---------- 5. ATTACK ANATOMY ---------- */
+screenWrap(4, `
+  <div class="eyebrow">04 · Anatomy of a Spoofed Email</div>
+  <h1 class="title s">Every stage of the attack leaves evidence in the message</h1>
+  <h2 class="sub">Our demo case: a "PayPal Security" email sent through a TOR exit node, with a lookalike link and an
+  executable disguised as an invoice. Click a stage to see what the attacker did and what v2 catches.</h2>
+  <div class="aflow" id="attackFlow"></div>
+  <div class="detail-box" id="attackDetail">Select a stage above.</div>
+`);
+
+/* ---------- 6. ARCHITECTURE ---------- */
+screenWrap(5, `
+  <div class="eyebrow">05 · System Architecture <span class="pill" style="margin-left:8px;">Rendered from README Mermaid</span></div>
+  <h1 class="title s">One LangGraph agent, a deterministic forensics stage in front of it</h1>
+  <h2 class="sub">Forensic checks always run on a raw email — they are not left to the LLM's discretion. The agent then
+  reasons over those findings plus the body and links, and rule-based post-processing scores and attributes the verdict.</h2>
+  <div class="seg" style="margin-top:16px;" id="archSeg">
+    <button data-d="0" class="on">Complete architecture</button>
+    <button data-d="1">Email forensics</button>
+    <button data-d="2">Agent internals</button>
+    <button data-d="3">Detection flow</button>
+  </div>
+  <div class="mm-stage" id="archMermaid"></div>
+  <div class="mm-barline">
+    <div class="mm-caption" id="archCaption"></div>
+    <button class="mm-expand" id="archExpandBtn">⛶ View Full Diagram</button>
+  </div>
+`);
+
+/* ---------- 7. HEADERS ---------- */
+screenWrap(6, `
+  <div class="eyebrow">06 · Header &amp; Protocol Analysis <span class="pill live" style="margin-left:8px;">Real output · demo .eml</span></div>
+  <h1 class="title s">Reading the Received chain backwards to find hop-0</h1>
+  <div class="two-col" style="margin-top:16px;">
+    <div>
+      <div class="email-raw" id="rawHeaders"></div>
+      <div class="scroll-note">tools/header_analyzer.py — Python stdlib <code>email</code> parser, no external header library.</div>
+    </div>
+    <div>
+      <div class="eyebrow" style="margin-bottom:6px;">Trace path · oldest hop first</div>
+      <div class="hops" id="hops"></div>
+      <div class="detail-box" id="hopDetail">Each server prepends a Received header, so the chain is reversed. The earliest hop with a public IP is the probable originating server. Click a hop.</div>
+    </div>
+  </div>
+`, 'tall');
+
+/* ---------- 8. AUTH ---------- */
+screenWrap(7, `
+  <div class="eyebrow">07 · Sender Authentication</div>
+  <h1 class="title s">Is the sender really who the From: line says?</h1>
+  <div class="authgrid" style="margin-top:18px;">
+    <div class="card authcard"><div class="t">SPF</div><div class="q">Is the server that delivered this mail allowed to send for the envelope domain?</div>
+      <div class="how">checkdmarc fetches the record · we walk ip4/ip6/include/redirect/a/mx against the delivering IP</div>
+      <span class="res fail">demo: fail</span></div>
+    <div class="card authcard"><div class="t">DKIM</div><div class="q">Was the message cryptographically signed by the domain, and is it unaltered?</div>
+      <div class="how">dkimpy verifies the DKIM-Signature against the published key</div>
+      <span class="res none">demo: none (unsigned)</span></div>
+    <div class="card authcard"><div class="t">DMARC</div><div class="q">Does SPF or DKIM pass <i>and</i> align with the visible From: domain? What does the domain ask receivers to do?</div>
+      <div class="how">policy via checkdmarc · relaxed alignment on the organisational domain</div>
+      <span class="res fail">demo: fail · paypal.com p=reject</span></div>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:8px;">Two sources, side by side</div>
+      <p style="font-size:13px; line-height:1.7;"><b>Reported</b> — the recipient mail server's own
+      <code>Authentication-Results</code>, evaluated at delivery time. <b>Computed</b> — our live re-check against current
+      DNS. The receiver's verdict wins when present (DKIM keys rotate and DNS changes after delivery); both are shown
+      in the report so an investigator can see any disagreement.</p>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:8px;">It moves the verdict</div>
+      <p style="font-size:13px; line-height:1.7;">A hard failure is not just a line in the report. DMARC fail adds
+      <b>+0.30</b> and SPF hard-fail <b>+0.20</b> to the risk score, a "legitimate" LLM verdict is escalated, and a
+      DMARC failure on a domain that publishes a policy upgrades "suspicious" to <b>impersonated</b>. Try it on the
+      Verdict slide.</p>
+    </div>
+  </div>
+`);
+
+/* ---------- 9. GEO ---------- */
+screenWrap(8, `
+  <div class="eyebrow">08 · Origin Traceability <span class="pill live" style="margin-left:8px;">Live lookup · demo origin IP</span></div>
+  <h1 class="title s">Where it came from — and whether it was hiding</h1>
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card" style="padding:12px;"><div id="geoMap"></div>
+      <div class="scroll-note">Map: © OpenStreetMap contributors · the same view appears on every email case in the dashboard.</div></div>
+    <div class="card">
+      <div class="kv">
+        <span class="k">Origin IP</span><span class="mono" style="color:var(--cyan);">185.220.101.34</span>
+        <span class="k">Location</span><span>Brandenburg an der Havel, Brandenburg, Germany</span>
+        <span class="k">ISP / ASN</span><span>Stiftung Erneuerbare Freiheit · AS60729</span>
+        <span class="k">Flags</span><span><span class="pill bad">TOR exit node</span> <span class="pill demo">VPN range</span> <span class="pill demo">Hosting</span></span>
+      </div>
+      <div class="eyebrow" style="margin:18px 0 6px;">Intelligence sources</div>
+      <div class="src-row"><span>MaxMind GeoLite2 City + ASN</span><span class="m">offline .mmdb · preferred</span></div>
+      <div class="src-row"><span>ip-api.com</span><span class="m">keyless fallback · 45 req/min</span></div>
+      <div class="src-row"><span>Tor Project bulk exit list</span><span class="m">cached, auto-refreshed every 6h</span></div>
+      <div class="src-row"><span>X4BNet VPN + datacenter CIDRs</span><span class="m">vendored · 55k ranges · bisect lookup</span></div>
+      <div class="src-row"><span>AbuseIPDB</span><span class="m">optional · blacklist confidence score</span></div>
+      <div class="src-row"><span>DNS MX / TXT (dnspython)</span><span class="m">sender-domain infrastructure</span></div>
+    </div>
+  </div>
+`);
+
+/* ---------- 10. ATTACHMENTS ---------- */
+screenWrap(9, `
+  <div class="eyebrow">09 · Attachment Analysis <span class="pill live" style="margin-left:8px;">Real output · demo .eml</span></div>
+  <h1 class="title s">Static inspection only — never opened, never executed</h1>
+  <div class="card" style="margin-top:18px;">
+    <div class="eyebrow" style="margin-bottom:10px;">invoice.pdf.exe · 128 bytes · sha256 bfdf5e72651b4ec5…</div>
+    <div class="fileviz">
+      <span class="part fake">Content-Type: application/pdf</span><span style="color:var(--dim);">claims</span>
+      <span class="part fake">invoice.pdf</span><span style="color:var(--dim);">is really</span>
+      <span class="part real">.exe · MZ header · application/x-msdownload</span>
+    </div>
+  </div>
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="check-row"><span>①</span><span><b>Hash</b> — SHA-256 and MD5 for threat-intel lookup and evidence integrity</span><span class="pill">always</span></div>
+      <div class="check-row"><span>②</span><span><b>Real type vs. claimed</b> — magic-byte sniffing (<code>filetype</code>) against extension and declared MIME</span><span class="pill bad">3 flags</span></div>
+      <div class="check-row"><span>③</span><span><b>Office macros</b> — <code>oletools</code> parses VBA and flags AutoOpen / Shell-style indicators</span><span class="pill">Office files</span></div>
+      <div class="check-row"><span>④</span><span><b>Signature scan</b> — ClamAV via <code>pyclamd</code> when a daemon is running; skipped gracefully otherwise</span><span class="pill">optional</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:8px;">Flags raised on the demo</div>
+      <ul class="plain">
+        <li><b style="color:var(--red);">double_extension</b> — disguises a .exe file as a .pdf</li>
+        <li><b style="color:var(--red);">executable</b> — an executable file type</li>
+        <li><b style="color:var(--amber);">content_type_mismatch</b> — declared application/pdf, content is application/x-msdownload</li>
+      </ul>
+      <p style="font-size:12.5px; color:var(--muted); margin-top:10px; line-height:1.6;">Attachments stay in memory as bytes.
+      Nothing is written to disk, opened or run. Risk impact: +0.25 for a disguised executable, +0.20 for macros, +0.40 for a ClamAV hit.</p>
+    </div>
+  </div>
+`);
+
+/* ---------- 11. VERDICT ---------- */
+screenWrap(10, `
+  <div class="eyebrow">10 · Verdict &amp; Attribution <span class="pill" style="margin-left:8px;">Interactive · mirrors agent/verdict_rules.py</span></div>
+  <h1 class="title s">Five classes, one explainable risk score, one attribution</h1>
+  <div class="grid" style="grid-template-columns:repeat(5,1fr); gap:10px; margin-top:12px;">
+    <div class="card tax" style="border-left-color:var(--green);"><div class="t">legitimate</div><div class="d">Genuine, no deception found</div></div>
+    <div class="card tax" style="border-left-color:var(--amber);"><div class="t">suspicious</div><div class="d">Real red flags, not conclusive</div></div>
+    <div class="card tax" style="border-left-color:#E07A44;"><div class="t">impersonated</div><div class="d">Forged sender, lookalike or display-name spoofing</div></div>
+    <div class="card tax" style="border-left-color:var(--red);"><div class="t">phishing</div><div class="d">Steals credentials or delivers malware</div></div>
+    <div class="card tax" style="border-left-color:#B03A4E;"><div class="t">fraud-related</div><div class="d">Invoices, changed bank details, BEC, scams</div></div>
+  </div>
+  <div class="two-col" style="margin-top:14px;">
+    <div class="card">
+      <div class="calc" id="calc">
+        <label>LLM verdict<select id="cLabel"><option>legitimate</option><option selected>suspicious</option><option>impersonated</option><option>phishing</option><option>fraud-related</option></select></label>
+        <label>Sender-domain age<span style="display:flex; gap:8px; align-items:center;"><input type="range" id="cAge" min="0" max="3650" value="30" style="flex:1;"><span id="cAgeV" class="mono" style="font-size:11px; color:var(--text);">30 d</span></span></label>
+        <label>SPF<select id="cSpf"><option>pass</option><option>softfail</option><option selected>fail</option><option>none</option></select></label>
+        <label>DKIM<select id="cDkim"><option>pass</option><option>fail</option><option selected>none</option></select></label>
+        <label>DMARC<select id="cDmarc"><option>pass</option><option selected>fail</option><option>none</option></select></label>
+        <span></span>
+        <label class="tog"><input type="checkbox" id="cTor" checked> Origin is a TOR exit</label>
+        <label class="tog"><input type="checkbox" id="cVpn"> Origin in a VPN range</label>
+        <label class="tog"><input type="checkbox" id="cExe" checked> Disguised executable attached</label>
+        <label class="tog"><input type="checkbox" id="cMacro"> Office macros attached</label>
+        <label class="tog"><input type="checkbox" id="cReply" checked> Reply-To on another domain</label>
+        <label class="tog"><input type="checkbox" id="cOrder"> Out-of-order Received hops</label>
+      </div>
+    </div>
+    <div class="card verdict-out">
+      <div class="eyebrow" style="margin-bottom:4px;">Final verdict</div>
+      <div class="lab" id="oLabel">—</div>
+      <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:6px;"><span>risk score</span><span id="oRisk">—</span></div>
+      <div class="riskbar"><span id="oBar"></span></div>
+      <ul class="factors" id="oFactors"></ul>
+      <div class="attr" id="oAttr"></div>
+    </div>
+  </div>
+`, 'tall');
+
+/* ---------- 12. CORRELATION ---------- */
+screenWrap(11, `
+  <div class="eyebrow">11 · Identity Correlation &amp; Campaigns</div>
+  <h1 class="title s">One email is a case. Shared infrastructure is a campaign.</h1>
+  <div class="two-col" style="margin-top:16px;">
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:6px;">Graph — two demo cases, linked through shared entities</div>
+      <div class="mm-stage" id="corrMermaid" style="height:40vh; margin-top:6px;"></div>
+      <div class="scroll-note">NetworkX, in memory · nodes = domains, IPs, sender addresses · edge = "seen together in a case"</div>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:8px;">How campaigns are found</div>
+      <ul class="plain">
+        <li>Every finished investigation is already embedded with <b>SecureBERT</b> for case memory</li>
+        <li>Raw embeddings sit at ~0.98 cosine to each other, so they are <b>mean-centred</b> first</li>
+        <li><b>DBSCAN</b> clusters malicious cases only — a campaign is just a shared cluster ID</li>
+        <li>Shared domains / IPs / senders across a cluster are listed as its indicators</li>
+      </ul>
+      <div class="detail-box" style="min-height:auto;">
+        <span class="k">Demo result · campaign C-9b6bad01</span>
+        2 cases ("account limited" phishing + "invoice failed" fraud) sharing
+        <span class="mono">185.220.101.34</span>, <span class="mono">secure-paypa1.com</span> and
+        <span class="mono">account-review@secure-paypa1.com</span>.
+      </div>
+      <p class="scroll-note">The agent can also call <code>correlate_entity</code> mid-investigation: "has this origin IP been seen before?"</p>
+    </div>
+  </div>
+`);
+
+/* ---------- 13. DASHBOARD ---------- */
+screenWrap(12, `
+  <div class="eyebrow">12 · Alerting, Dashboard &amp; Reporting <span class="pill live" style="margin-left:8px;">Screenshots of the running v2 dashboard</span></div>
+  <h1 class="title s">Everything an investigator needs, on one case page</h1>
+  <div class="seg" id="shotSeg" style="margin-top:10px;">
+    <button data-s="run" class="on">Case forensics</button>
+    <button data-s="graph">Connections graph</button>
+    <button data-s="campaigns">Campaigns</button>
+    <button data-s="pdf">PDF report</button>
+  </div>
+  <div class="two-col" style="margin-top:12px;">
+    <div id="shotView"></div>
+    <div class="card" id="shotText"></div>
+  </div>
+`, 'tall');
+
+/* ---------- 14. PRIVACY ---------- */
+screenWrap(13, `
+  <div class="eyebrow">13 · Privacy &amp; Legal</div>
+  <h1 class="title s">Forensic evidence without collecting more than needed</h1>
+  <div class="grid g3" style="margin-top:20px;">
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">PII masking</div>
+      <p style="font-size:13px; line-height:1.7;">Microsoft <b>Presidio</b> masks names, emails, phone numbers, cards, IBAN,
+      PAN, Aadhaar, passport and voter IDs in the <i>stored</i> email body. The agent analyses the original; history,
+      reports and case memory keep the masked copy.</p>
+      <div class="detail-box" style="min-height:auto; font-family:var(--mono); font-size:11.5px;">Call me on &lt;PHONE_NUMBER&gt; or mail &lt;EMAIL_ADDRESS&gt;</div>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">Evidence preserved</div>
+      <p style="font-size:13px; line-height:1.7;">Headers are <b>not</b> masked — sender addresses, the Received chain and
+      authentication results are the evidence. Attachment hashes are recorded; the files themselves are never written
+      to disk or executed.</p>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">Retention</div>
+      <p style="font-size:13px; line-height:1.7;">Each case gets a <code>retain_until</code> date (<code>RETENTION_DAYS</code>,
+      default 90). A background sweep every 6 hours deletes expired cases, their reports and their case-memory embeddings.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    <div class="eyebrow" style="margin-bottom:8px;">Lawful response</div>
+    <p style="font-size:13px; line-height:1.7;">"Report &amp; block" adds a confirmed-bad domain to the local blocklist and reports
+    it to VirusTotal — the legal route. The platform never attacks back: that is illegal even against criminal
+    infrastructure. Origin data is presented as <i>probable</i> — a TOR exit or VPN is where the trail ends, not who the attacker is.</p>
+  </div>
+`);
+
+/* ---------- 15. COVERAGE ---------- */
+screenWrap(14, `
+  <div class="eyebrow">14 · Problem-Statement Coverage</div>
+  <h1 class="title s">Every component has a working path from input email to visible output</h1>
+  <div class="card" style="margin-top:16px; padding:8px 12px;">
+    <table class="cmp">
+      <tr><th>PS component</th><th>Implemented in</th><th>What you see</th><th></th></tr>
+      <tr><td>Detection Engine</td><td class="m">agent/ · content_classifier · inspect_website</td><td>5-class verdict, confidence, risk score</td><td class="ok">✓</td></tr>
+      <tr><td>Header / Protocol Analysis</td><td class="m">header_analyzer · auth_validator</td><td>Received chain, anomalies, SPF/DKIM/DMARC</td><td class="ok">✓</td></tr>
+      <tr><td>Origin Traceability</td><td class="m">geolocate · domain_reputation</td><td>Origin IP on a map, ISP, TOR/VPN/hosting</td><td class="ok">✓</td></tr>
+      <tr><td>Identity Correlation</td><td class="m">correlation_graph · case_index</td><td>Attribution, connections graph, campaigns</td><td class="ok">✓</td></tr>
+      <tr><td>Alerting, Dashboard, Reporting</td><td class="m">dashboard/ · extension/ · report.py</td><td>Case page, campaign table, PDF report, browser alerts</td><td class="ok">✓</td></tr>
+      <tr><td>Privacy / Legal</td><td class="m">utils/privacy.py · history.py</td><td>Masked storage, retention sweep</td><td class="ok">✓</td></tr>
+    </table>
+  </div>
+  <div class="grid g4" style="margin-top:16px;">
+    <div class="card kpi"><div class="val">26</div><div class="lbl">Backend tests passing</div><div class="src">offline; lookups stubbed</div></div>
+    <div class="card kpi"><div class="val">5</div><div class="lbl">Forensic steps per raw email</div><div class="src">headers · auth · domain · geo · attachments</div></div>
+    <div class="card kpi"><div class="val">7</div><div class="lbl">Tools the agent can call</div><div class="src">incl. geolocate_ip, correlate_entity</div></div>
+    <div class="card kpi"><div class="val">0</div><div class="lbl">Paid APIs required</div><div class="src">free tiers / offline data only</div></div>
+  </div>
+`);
+
+/* ---------- 16. FEASIBILITY ---------- */
+screenWrap(15, `
+  <div class="eyebrow">15 · Feasibility &amp; Tech Stack</div>
+  <h1 class="title s">Built on well-known, free components — deployable today</h1>
+  <div class="grid g3" style="margin-top:20px;">
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">Stack</div>
+      <ul class="plain">
+        <li><b>LangGraph</b> agent · LLM via <b>OpenRouter</b></li>
+        <li>FastAPI backend · SQLite history</li>
+        <li>checkdmarc · dkimpy · dnspython</li>
+        <li>geoip2 · NetworkX · scikit-learn</li>
+        <li>filetype · oletools · pyclamd · Presidio</li>
+        <li>Next.js dashboard · Leaflet · force-graph</li>
+        <li>Chrome MV3 extension</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">Cost</div>
+      <ul class="plain">
+        <li>Forensic checks are local or free: DNS, offline GeoLite2, Tor list, vendored VPN ranges</li>
+        <li>Pretrained ONNX/BERT phishing models run on CPU</li>
+        <li>AbuseIPDB (1,000/day), VirusTotal and ip-api on free tiers — each optional</li>
+        <li>The only paid call is the LLM, and the router's cache and blocklist keep it rare</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px;">Robustness</div>
+      <ul class="plain">
+        <li>Every external lookup degrades independently — a failed check never sinks the case</li>
+        <li>LLM rate-limit or outage fails safe to "suspicious, unresolved", never "safe"</li>
+        <li>Rules are plain if/else — every point of risk has a written reason</li>
+        <li>One-command setup and start scripts</li>
+      </ul>
+    </div>
+  </div>
+`);
+
+/* ---------- 17. LIMITATIONS ---------- */
+screenWrap(16, `
+  <div class="eyebrow">16 · Limitations &amp; Roadmap</div>
+  <h1 class="title s">What this is — and isn't — today</h1>
+  <div class="two-col" style="margin-top:20px;">
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px; color:var(--amber);">Honest limitations</div>
+      <ul class="plain">
+        <li>Origin = last public hop we can see. TOR, VPN or a compromised relay ends the trail — we flag it rather than guess past it</li>
+        <li>Campaign clustering threshold is tuned on a handful of cases; it needs retuning on a real corpus</li>
+        <li>No labelled email benchmark yet — detection quality is not quantified</li>
+        <li>VPN/datacenter lists are refreshed manually; ip-api fallback is rate-limited to 45/min</li>
+        <li>ClamAV signature scanning needs a separately installed daemon</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px; color:var(--cyan);">Next steps</div>
+      <ul class="plain">
+        <li>Evaluate on public phishing / BEC email corpora and publish precision/recall</li>
+        <li>Direct mailbox ingestion (IMAP / Gmail / Outlook APIs) instead of .eml upload</li>
+        <li>Attachment hash look-ups against VirusTotal and a sandbox detonation option</li>
+        <li>Tamper-evident evidence log (hash-chained reports) for chain of custody — fits the Blockchain theme</li>
+        <li>Multi-user access control and SIEM export</li>
+      </ul>
+    </div>
+  </div>
+`);
+
+/* ---------- 18. CLOSE ---------- */
+screenWrap(17, `
+  <div class="eyebrow">Final Takeaway</div>
+  <h1 class="title">From "is this phishing?"<br>to a forensic case file.</h1>
+  <h2 class="sub" style="max-width:680px;">One raw email in; out comes a classified verdict, the route it travelled, where it
+  came from, who is probably behind it, and what else it is connected to — explained in plain language and ready to report.</h2>
+  <div class="flow" style="margin-top:32px;">
+    <div class="node"><div class="n">01</div><div class="t">Ingest</div></div><div class="arrow">→</div>
+    <div class="node"><div class="n">02</div><div class="t">Trace</div></div><div class="arrow">→</div>
+    <div class="node"><div class="n">03</div><div class="t">Authenticate</div></div><div class="arrow">→</div>
+    <div class="node"><div class="n">04</div><div class="t">Classify</div></div><div class="arrow">→</div>
+    <div class="node"><div class="n">05</div><div class="t">Attribute</div></div><div class="arrow">→</div>
+    <div class="node"><div class="n">06</div><div class="t">Correlate</div></div><div class="arrow">→</div>
+    <div class="node"><div class="n">07</div><div class="t">Report</div></div>
+  </div>
+  <div style="margin-top:40px;">
+    <div style="font-family:var(--disp); font-size:28px; font-weight:700;">Thank you.</div>
+    <div style="color:var(--muted); margin-top:6px;">Questions?</div>
+  </div>
+`);
+
+/* =========================================================
+   INTERACTIVE WIRING
+   ========================================================= */
+
+/* ---- PS components ---- */
+const PS = [
+  {t:'Detection Engine', m:'LangGraph agent · BERT/ONNX classifiers', d:'The agent investigates body text, every link (headless-browser sandbox, WHOIS, VirusTotal) and the forensic findings, then answers in one of the five required classes. Rule-based post-processing turns evidence into a 0–1 risk score with written reasons.'},
+  {t:'Header & Protocol Analysis', m:'header_analyzer.py · auth_validator.py', d:'Parses From, Return-Path, Reply-To, Message-ID and the full Received chain; flags out-of-order hops and sender mismatches; checks SPF, DKIM and DMARC including domain alignment.'},
+  {t:'Origin Traceability', m:'geolocate.py · domain_reputation.py', d:'Finds hop-0 (earliest public IP), geolocates it (country, region, city, ISP, ASN) and correlates it with the Tor exit list, VPN and datacenter ranges and AbuseIPDB. Sender-domain MX/TXT and WHOIS age add infrastructure context.'},
+  {t:'Identity Correlation', m:'correlation_graph.py · verdict_rules.py', d:'Attribution rules classify the likely actor (spoofed domain, compromised account, anonymized infrastructure, direct actor). A graph links domains, IPs and senders across cases; DBSCAN over case embeddings groups campaigns.'},
+  {t:'Alerting, Dashboard & Reporting', m:'dashboard/ · extension/ · pdfReport.ts', d:'Case page with origin map, trace path, auth chips, attachment findings and connections graph; campaign table; forensic PDF with every field; browser extension alerts on the user\'s own inbox.'},
+  {t:'Privacy & Legal', m:'utils/privacy.py · history.py', d:'Presidio masks PII in stored bodies while headers are kept as evidence; per-case retention with an automatic sweep; attachments never executed; reporting instead of retaliation.'},
+];
+const psGrid = document.getElementById('psGrid'), psDetail = document.getElementById('psDetail');
+PS.forEach((p,i)=>{
+  const c = document.createElement('div');
+  c.className = 'card pscomp'; c.style.cursor = 'pointer';
+  c.innerHTML = `<div class="n">COMPONENT ${pad(i+1)}</div><div class="t">${p.t}</div><div class="m">${p.m}</div><div class="ok">✓ implemented</div>`;
+  c.addEventListener('click', ()=>{
+    psGrid.querySelectorAll('.pscomp').forEach(x=>x.style.borderColor=''); c.style.borderColor='var(--cyan)';
+    psDetail.innerHTML = `<span class="k">${p.t}</span>${p.d}`;
+  });
+  psGrid.appendChild(c);
+});
+
+/* ---- Attack anatomy ---- */
+const attackStages = [
+  {s:'Spoofed sender', t:'Forged From: service@paypal.com', tag:'Auth', d:'The attacker puts a trusted brand in From: but sends from their own domain. <b>Caught by:</b> SPF fail, DMARC fail against paypal.com (p=reject), From/Return-Path mismatch.'},
+  {s:'Anonymised relay', t:'Sent from a TOR exit node', tag:'Origin', d:'The first public hop is 185.220.101.34. <b>Caught by:</b> hop-0 extraction from the Received chain, Tor exit list, VPN/hosting ranges, geolocation to Brandenburg, DE.'},
+  {s:'Forged route', t:'Injected / reordered Received hops', tag:'Headers', d:'A hop timestamped 5 minutes after the next one — a sign of a forged or injected header. <b>Caught by:</b> out-of-order timestamp check in header_analyzer.'},
+  {s:'Lure', t:'"Your account will be suspended in 24h"', tag:'Agent', d:'Urgency and credential request in the body. <b>Caught by:</b> BERT phishing text model and the agent\'s reading of the decoded body.'},
+  {s:'Lookalike link', t:'paypal-account-verify.secure-paypa1.com', tag:'Agent', d:'Quoted-printable HTML hides the real href. <b>Caught by:</b> decoding the MIME body, then inspect_website (sandbox), WHOIS age, VirusTotal and brand-impersonation reasoning.'},
+  {s:'Payload', t:'invoice.pdf.exe', tag:'Attachment', d:'An executable dressed as a PDF. <b>Caught by:</b> magic-byte type detection, double-extension and content-type mismatch flags.'},
+  {s:'Reply trap', t:'Reply-To: account-review@secure-paypa1.com', tag:'Headers', d:'Any reply goes to the attacker — the classic payment-diversion setup. <b>Caught by:</b> Reply-To domain mismatch (high severity).'},
+];
+(function(){
+  const flow = document.getElementById('attackFlow'), detail = document.getElementById('attackDetail');
+  attackStages.forEach((s,i)=>{
+    const n = document.createElement('div'); n.className = 'anode';
+    n.innerHTML = `<div class="an">STAGE ${pad(i+1)}</div><div class="at">${s.s}</div><div class="atag">${s.tag}</div>`;
+    n.addEventListener('click', ()=>{
+      flow.querySelectorAll('.anode').forEach(x=>x.classList.remove('on')); n.classList.add('on');
+      detail.innerHTML = `<span class="k">${s.t}</span>${s.d}`;
+    });
+    flow.appendChild(n);
+    if(i<attackStages.length-1){ const c=document.createElement('div'); c.className='aconn'; flow.appendChild(c); }
+  });
+})();
+
+/* ---- Mermaid ---- */
+mermaid.initialize({
+  startOnLoad:false, securityLevel:'loose', theme:'base',
+  flowchart:{curve:'basis', htmlLabels:true, padding:14},
+  themeVariables:{
+    background:'#0F1622', primaryColor:'#16202F', primaryBorderColor:'rgba(128,150,185,.45)', primaryTextColor:'#E8EDF5',
+    secondaryColor:'#1C2839', tertiaryColor:'#0F1622', lineColor:'#4EC6D2', edgeLabelBackground:'#0F1622',
+    clusterBkg:'rgba(78,198,210,.05)', clusterBorder:'rgba(78,198,210,.35)', nodeBorder:'rgba(128,150,185,.45)', mainBkg:'#16202F',
+    fontFamily:'Inter, sans-serif', fontSize:'13px', titleColor:'#4EC6D2', nodeTextColor:'#E8EDF5',
+  }
+});
+const archDiagrams = [
+`flowchart TB
+    subgraph Clients["Entry points"]
+        EXT["Chrome Extension<br/>per-page scan, webmail popup"]
+        DASH["Dashboard (Next.js)<br/>.eml upload, cases, campaigns, PDF"]
+        CLI["cli.py"]
+    end
+    EXT --> API
+    DASH --> API
+    CLI --> GRAPH
+    API["FastAPI"] --> GRAPH["LangGraph agent<br/>router → forensics → agent ⇄ tools → output"]
+    GRAPH --> FOR["Forensics node<br/>headers · SPF/DKIM/DMARC · domain ·<br/>geolocation · attachments"]
+    GRAPH --> TOOLS["Agent tools<br/>inspect_website · domain_reputation · content_classifier ·<br/>web_search · recall_similar_cases · geolocate_ip · correlate_entity"]
+    GRAPH --> RULES["verdict_rules.py<br/>risk score · escalation · attribution"]
+    RULES --> VERDICT["Verdict<br/>5-class label · risk · attribution · reason"]
+    GRAPH --> STORE[("history.db (PII-masked, retention)<br/>reports · case-memory embeddings")]
+    STORE --> CORR["correlation_graph.py<br/>entity graph + DBSCAN campaigns"]
+    VERDICT --> DASH
+    VERDICT --> EXT`,
+`flowchart LR
+    EML(["Raw email (.eml)"]) --> HDR["analyze_email_headers<br/>Received chain, hop-0,<br/>sender mismatches"]
+    HDR --> AUTH["validate_email_auth<br/>SPF · DKIM · DMARC<br/>+ alignment"]
+    AUTH --> REP["domain_reputation<br/>sender-domain age, MX/TXT"]
+    REP --> GEO["geolocate_ip<br/>location · ISP · TOR / VPN /<br/>hosting · AbuseIPDB"]
+    GEO --> ATT["scan_attachments<br/>hash · real type ·<br/>macros · ClamAV"]
+    ATT --> AGENT["Agent reasons over<br/>findings + body + links"]
+    AGENT --> RULES["verdict_rules.py<br/>risk · escalation · attribution"]
+    RULES --> OUT(["Verdict + campaign"])`,
+`flowchart TD
+    ENTRY(["case_type: link / email"]) --> ROUTER["router_node<br/>link only: blocklist + 24h cache"]
+    ROUTER -->|"hit"| OUTPUT
+    ROUTER -->|"unresolved"| FN["forensics_node<br/>raw emails only"]
+    FN --> AGENTNODE["agent_node<br/>LLM picks the next tool,<br/>or answers"]
+    AGENTNODE -->|"tool calls"| TOOLNODE["ToolNode"]
+    TOOLNODE -->|"results"| AGENTNODE
+    AGENTNODE -->|"final answer"| OUTPUT["output_node<br/>parse verdict · apply forensic rules ·<br/>attribution · cache + case memory"]
+    OUTPUT --> V(["Verdict"])
+    AGENTNODE -.->|"recursion limit / LLM outage"| FS(["Fail safe: suspicious,<br/>never safe"])`,
+`flowchart TD
+    subgraph Automatic["Automatic — extension"]
+        NAV(["Every navigation"]) --> QCU["quick-check-url<br/>ONNX + cached VirusTotal"]
+        OPEN(["Webmail popup"]) --> QCE["quick-check-email<br/>BERT text model"]
+    end
+    subgraph Deliberate["Full investigation"]
+        INPUT(["URL, pasted email<br/>or raw .eml"]) --> ROUTER{"Blocklist or<br/>cache hit?"}
+        ROUTER -->|"yes"| INSTANT["Instant verdict"]
+        ROUTER -->|"no"| RAW{"Raw RFC822<br/>headers?"}
+        RAW -->|"yes"| FOR["Forensics stage"]
+        RAW -->|"no"| AGENT
+        FOR --> AGENT["Agent investigates body<br/>and every link"]
+        AGENT --> V["Verdict + risk +<br/>attribution"]
+    end
+    QCU -.->|"escalate"| INPUT
+    QCE -.->|"escalate"| INPUT
+    V --> H[("history · report · campaigns")]`,
+];
+const archTitles = ['Complete architecture','Email forensics pipeline','LangGraph agent internals','Detection flow'];
+const archStage = document.getElementById('archMermaid');
+const archCaption = document.getElementById('archCaption');
+let archActive = 0;
+async function renderMermaidInto(stage, sources, idPrefix){
+  stage.innerHTML = '';
+  const wraps = sources.map((src,i)=>{
+    const w = document.createElement('div'); w.className = 'mm-wrap';
+    const g = document.createElement('div'); g.className = 'mermaid'; g.id = idPrefix+i; g.textContent = src;
+    w.appendChild(g); stage.appendChild(w); return w;
+  });
+  try{
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    await mermaid.run({ nodes: stage.querySelectorAll('.mermaid') });
+  }catch(e){}
+  wraps.forEach((w,i)=> w.classList.toggle('hidden', i!==0));
+}
+function setArchCaption(){ archCaption.textContent = `Diagram ${archActive+1} of ${archDiagrams.length} · ${archTitles[archActive]}`; }
+renderMermaidInto(archStage, archDiagrams, 'archmm-');
+setArchCaption();
+document.querySelectorAll('#archSeg button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#archSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    archActive = +b.dataset.d;
+    archStage.querySelectorAll('.mm-wrap').forEach((w,i)=> w.classList.toggle('hidden', i!==archActive));
+    setArchCaption();
+  });
+});
+
+const corrDiagram = `flowchart LR
+    C1(["Case 1 · phishing<br/>account limited"]):::case
+    C2(["Case 2 · fraud<br/>invoice failed"]):::case
+    S1["service@paypal.com"]
+    S2["billing@paypal.com"]
+    RT["account-review@<br/>secure-paypa1.com"]:::hot
+    IP["185.220.101.34<br/>TOR exit"]:::hot
+    D1["secure-paypa1.com"]:::hot
+    D2["paypal.com"]
+    C1 --- S1
+    C1 --- RT
+    C1 --- IP
+    C1 --- D1
+    C1 --- D2
+    C2 --- S2
+    C2 --- RT
+    C2 --- IP
+    C2 --- D1
+    C2 --- D2
+    classDef hot stroke:#E85D62,color:#E8EDF5
+    classDef case fill:#1C2839,stroke:#4EC6D2,color:#4EC6D2`;
+renderMermaidInto(document.getElementById('corrMermaid'), [corrDiagram], 'corrmm-');
+
+/* ---- zoom/pan modal ---- */
+const archModal = document.getElementById('archModal'), archCanvas = document.getElementById('archModalCanvas');
+const archMStage = document.getElementById('archModalStage'), zPctEl = document.getElementById('mzPct');
+let mScale=1, mTx=0, mTy=0;
+function applyM(){ archCanvas.style.transform = `translate(-50%,-50%) translate(${mTx}px,${mTy}px) scale(${mScale})`; zPctEl.textContent = Math.round(mScale*100)+'%'; }
+function openArchModal(){
+  const src = archStage.querySelectorAll('.mm-wrap')[archActive]?.querySelector('svg'); if(!src) return;
+  archCanvas.innerHTML = ''; const clone = src.cloneNode(true); clone.removeAttribute('style');
+  const vb = (src.getAttribute('viewBox')||'0 0 900 600').split(/\s+/).map(Number);
+  archModal.classList.add('open');
+  const fit = Math.min((archMStage.clientHeight*0.9)/(vb[3]||600), (archMStage.clientWidth*0.9)/(vb[2]||900)) || 1;
+  clone.setAttribute('width', (vb[2]||900)*fit); clone.setAttribute('height', (vb[3]||600)*fit);
+  archCanvas.appendChild(clone);
+  document.getElementById('archModalTitle').textContent = archTitles[archActive];
+  mScale=1; mTx=0; mTy=0; applyM();
+}
+function closeArchModal(){ archModal.classList.remove('open'); }
+function zoomBy(f, cx, cy){
+  const ns = Math.min(6, Math.max(0.25, mScale*f));
+  if(cx!=null){ mTx = cx-(cx-mTx)*(ns/mScale); mTy = cy-(cy-mTy)*(ns/mScale); }
+  mScale = ns; applyM();
+}
+document.getElementById('archExpandBtn').addEventListener('click', openArchModal);
+document.getElementById('mzIn').addEventListener('click', ()=>zoomBy(1.25));
+document.getElementById('mzOut').addEventListener('click', ()=>zoomBy(1/1.25));
+document.getElementById('mzReset').addEventListener('click', ()=>{ mScale=1; mTx=0; mTy=0; applyM(); });
+document.getElementById('mzClose').addEventListener('click', closeArchModal);
+archModal.addEventListener('mousedown', e=>{ if(e.target===archModal) closeArchModal(); });
+archMStage.addEventListener('wheel', e=>{
+  e.preventDefault(); const r = archMStage.getBoundingClientRect();
+  zoomBy(e.deltaY<0 ? 1.12 : 1/1.12, e.clientX-r.left-r.width/2, e.clientY-r.top-r.height/2);
+}, {passive:false});
+let dragging=false, dsx=0, dsy=0;
+archMStage.addEventListener('mousedown', e=>{ dragging=true; dsx=e.clientX-mTx; dsy=e.clientY-mTy; archMStage.classList.add('grabbing'); });
+window.addEventListener('mousemove', e=>{ if(!dragging) return; mTx=e.clientX-dsx; mTy=e.clientY-dsy; applyM(); });
+window.addEventListener('mouseup', ()=>{ dragging=false; archMStage.classList.remove('grabbing'); });
+
+/* ---- Problem chart ---- */
+new Chart(document.getElementById('problemChart'), {
+  type:'bar',
+  data:{ labels:['Phishing / spoofing','Extortion','Personal data breach'],
+    datasets:[{ data:[193407,86415,64882], backgroundColor:['#4EC6D2','#E0A244','#5F93A6'], borderRadius:6 }] },
+  options:{ maintainAspectRatio:false,
+    plugins:{legend:{display:false}, title:{display:true, text:'FBI IC3 2024 — complaints by category (top 3)', color:'#828FA6', font:{size:10.5}}},
+    scales:{ x:{ticks:{color:'#828FA6', font:{size:10}}, grid:{display:false}}, y:{ticks:{color:'#828FA6', font:{size:10}}, grid:{color:'rgba(128,150,185,.1)'}} } }
+});
+
+/* ---- Header forensics (real analyzer output for tests/fixtures/phish_paypal.eml) ---- */
+document.getElementById('rawHeaders').innerHTML =
+`<span class="hl">Received:</span> from mx.victim-corp.in (mx.victim-corp.in [10.0.0.5])
+    by mailstore.victim-corp.in with LMTP; Mon, 22 Sep 2026 10:15:09 +0530
+<span class="hl">Received:</span> from mail-relay.secure-paypa1.com (unknown [<span class="bad">185.220.101.34</span>])
+    by mx.victim-corp.in (Postfix); Mon, 22 Sep 2026 10:15:02 +0530
+<span class="hl">Received:</span> from [192.168.1.20] (unknown [<span class="bad">185.220.101.34</span>])
+    by mail-relay.secure-paypa1.com; Mon, 22 Sep 2026 <span class="bad">10:20:40</span> +0530
+<span class="hl">Return-Path:</span> &lt;bounce@<span class="bad">secure-paypa1.com</span>&gt;
+<span class="hl">From:</span> "PayPal Security" &lt;service@paypal.com&gt;
+<span class="hl">Reply-To:</span> account-review@<span class="bad">secure-paypa1.com</span>
+<span class="hl">Subject:</span> Urgent: your account has been limited
+<span class="hl">Message-ID:</span> &lt;20260922101455.1234@<span class="bad">secure-paypa1.com</span>&gt;
+<span class="hl">Authentication-Results:</span> mx.victim-corp.in; <span class="bad">spf=fail</span>
+    dkim=none; <span class="bad">dmarc=fail</span> header.from=paypal.com`;
+const HOPS = [
+  {from:'192.168.1.20', ip:'185.220.101.34', by:'mail-relay.secure-paypa1.com', ts:'2026-09-22 10:20:40 +05:30', flags:['origin'],
+   d:'<b>Hop 0 — probable originating server.</b> The sender\'s own address is private (192.168.1.20), so the first <i>public</i> IP in this hop — 185.220.101.34 — is the origin. That IP is a TOR exit node.'},
+  {from:'mail-relay.secure-paypa1.com', ip:'185.220.101.34', by:'mx.victim-corp.in', ts:'2026-09-22 10:15:02 +05:30', flags:['out of order'],
+   d:'<b>Hop 1 — handed to the recipient\'s mail server.</b> This is the delivering IP that SPF is checked against. Its timestamp is <b>5.5 minutes earlier</b> than the hop before it — beyond normal clock skew (5 min), so the chain is flagged as possibly forged.'},
+  {from:'mx.victim-corp.in', ip:'10.0.0.5', by:'mailstore.victim-corp.in', ts:'2026-09-22 10:15:09 +05:30', flags:[],
+   d:'<b>Hop 2 — internal delivery.</b> Private 10.x address inside the recipient\'s organisation; skipped when looking for the origin.'},
+];
+(function(){
+  const box = document.getElementById('hops'), det = document.getElementById('hopDetail');
+  HOPS.forEach((h,i)=>{
+    const el = document.createElement('div'); el.className = 'hop';
+    el.innerHTML = `<span class="i">#${i}</span><div><div class="h">${h.from} <span class="ip">[${h.ip}]</span> → ${h.by}</div><div class="ts">${h.ts}</div></div>`+
+      `<span>${h.flags.map(f=>`<span class="pill ${f==='origin'?'live':'bad'}">${f}</span>`).join(' ')}</span>`;
+    el.addEventListener('click', ()=>{ box.querySelectorAll('.hop').forEach(x=>x.classList.remove('on')); el.classList.add('on'); det.innerHTML = h.d; });
+    box.appendChild(el);
+    if(i<HOPS.length-1){ const l=document.createElement('div'); l.className='hopline'; box.appendChild(l); }
+  });
+  const anomalies = document.createElement('div');
+  anomalies.className = 'detail-box'; anomalies.style.minHeight='auto';
+  anomalies.innerHTML = `<span class="k">Header anomalies found</span>
+    <span class="pill bad">high</span> Replies go to secure-paypa1.com, not paypal.com<br>
+    <span class="pill demo" style="margin-top:6px;">medium</span> From paypal.com ≠ Return-Path secure-paypa1.com<br>
+    <span class="pill demo" style="margin-top:6px;">medium</span> Received timestamps go backwards in time<br>
+    <span class="pill" style="margin-top:6px;">low</span> Message-ID generated by secure-paypa1.com`;
+  box.parentElement.appendChild(anomalies);
+})();
+
+/* ---- Geo map (lazy: Leaflet needs a visible container) ---- */
+let geoMap = null;
+onEnter.geo = ()=>{
+  setTimeout(()=>{
+    if(typeof L === 'undefined') return;
+    if(!geoMap){
+      geoMap = L.map('geoMap', {scrollWheelZoom:false, attributionControl:true}).setView([52.4, 13.0], 4);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution:'&copy; OpenStreetMap contributors', maxZoom:18, className:'dark-tiles' }).addTo(geoMap);
+      L.circleMarker([52.6171, 13.1207], {radius:10, color:'#E85D62', fillColor:'#E85D62', fillOpacity:.45})
+        .addTo(geoMap).bindPopup('<b>185.220.101.34</b><br>Brandenburg an der Havel, DE<br>TOR exit node').openPopup();
+      L.circleMarker([28.61, 77.21], {radius:7, color:'#4EC6D2', fillColor:'#4EC6D2', fillOpacity:.4})
+        .addTo(geoMap).bindTooltip('Recipient (victim-corp.in)');
+      L.polyline([[52.6171,13.1207],[28.61,77.21]], {color:'#4EC6D2', weight:1.5, dashArray:'5 6', opacity:.7}).addTo(geoMap);
+    }
+    geoMap.invalidateSize();
+  }, 420);
+};
+
+/* ---- Verdict calculator — same rules as backend/agent/verdict_rules.py ---- */
+const BASE = {'legitimate':.05,'suspicious':.45,'impersonated':.7,'phishing':.85,'fraud-related':.9};
+const ATTR = {compromised_account:'Compromised account', spoofed_domain:'Spoofed domain', anonymized_infrastructure:'Anonymized infrastructure', direct_actor:'Direct actor', unknown:'Unknown'};
+const $ = id => document.getElementById(id);
+function computeVerdict(){
+  const v = {label:$('cLabel').value, spf:$('cSpf').value, dkim:$('cDkim').value, dmarc:$('cDmarc').value,
+    tor:$('cTor').checked, vpn:$('cVpn').checked, exe:$('cExe').checked, macro:$('cMacro').checked,
+    reply:$('cReply').checked, order:$('cOrder').checked, age:+$('cAge').value};
+  $('cAgeV').textContent = v.age + ' d';
+  let bump = 0, hard = false; const f = [];
+  if(v.dmarc==='fail'){ bump+=.30; hard=true; f.push('DMARC failed for the From: domain (+0.30)'); }
+  if(v.spf==='fail'){ bump+=.20; hard=true; f.push('SPF hard-fail (+0.20)'); }
+  else if(v.spf==='softfail'){ bump+=.10; f.push('SPF softfail (+0.10)'); }
+  if(v.dkim==='fail'){ bump+=.15; f.push('DKIM signature failed (+0.15)'); }
+  if(v.tor){ bump+=.15; f.push('Originated from a TOR exit node (+0.15)'); }
+  else if(v.vpn){ bump+=.10; f.push('Originated from a VPN range (+0.10)'); }
+  if(v.exe){ bump+=.25; f.push('Attachment is a disguised executable (+0.25)'); }
+  if(v.macro){ bump+=.20; f.push('Office attachment contains macros (+0.20)'); }
+  if(v.reply){ bump+=.05; f.push('Reply-To on another domain (+0.05)'); }
+  if(v.order){ bump+=.05; f.push('Out-of-order Received hops (+0.05)'); }
+  let label = v.label;
+  if(hard && label==='legitimate'){ label='suspicious'; f.push('Escalated from legitimate: sender authentication failed'); }
+  if(label==='suspicious' && v.dmarc==='fail'){ label='impersonated'; f.push('Escalated to impersonated: From: domain did not authenticate'); }
+  const risk = Math.min(1, Math.max(BASE[v.label] + bump, BASE[label]));
+  // attribution (alignment assumed for a passing SPF, misaligned for a failing one)
+  const anon = v.tor || v.vpn;
+  const authed = v.dmarc==='pass' || v.spf==='pass' || v.dkim==='pass';
+  let a, why;
+  if(label==='legitimate'){ a='unknown'; why='No malicious activity to attribute.'; }
+  else if(v.dmarc==='fail' || v.spf==='fail'){ a='spoofed_domain'; why='Fails the claimed domain\'s SPF/DMARC — the sender forged an address they don\'t control.'; }
+  else if(authed && v.age>=180){ a='compromised_account'; why=`Genuinely authenticated by an established domain (${v.age} days), yet malicious — most likely a compromised mailbox.`; }
+  else if(authed && anon){ a='anonymized_infrastructure'; why='Authenticates for the domain but was sent through TOR/VPN to hide its origin.'; }
+  else if(authed){ a='direct_actor'; why=`The attacker appears to own the domain (${v.age} days old) and sent from their own infrastructure.`; }
+  else if(anon){ a='anonymized_infrastructure'; why='Sent through TOR/VPN infrastructure to hide its origin.'; }
+  else { a='unknown'; why='Authentication is inconclusive — not enough evidence to attribute.'; }
+  $('oLabel').textContent = label;
+  $('oLabel').style.color = label==='legitimate' ? 'var(--green)' : label==='suspicious' ? 'var(--amber)' : 'var(--red)';
+  $('oRisk').textContent = Math.round(risk*100) + ' / 100';
+  $('oBar').style.width = (risk*100)+'%';
+  $('oBar').style.background = risk<.3 ? 'var(--green)' : risk<.6 ? 'var(--amber)' : 'var(--red)';
+  $('oFactors').innerHTML = f.length ? f.map(x=>`<li>${x}</li>`).join('') : '<li>No forensic risk factors</li>';
+  $('oAttr').innerHTML = `Attribution: <b>${ATTR[a]}</b><br><span style="color:var(--muted);">${why}</span>`;
+}
+document.querySelectorAll('#calc select, #calc input').forEach(el=> el.addEventListener('input', computeVerdict));
+computeVerdict();
+
+/* ---- Dashboard screenshots ---- */
+const SHOTS = {
+  run:{html:'<div class="shot-scroll"><img src="assets/dashboard-run.png" alt="v2 dashboard case page: verdict, attribution, SPF/DKIM/DMARC, origin map, trace path, attachments"></div>',
+    t:'Case forensics', d:`<ul class="plain"><li>Verdict class, 0–100 risk score and campaign badge</li><li>Attribution with its reason, and every risk factor</li><li>SPF / DKIM / DMARC chips with alignment and policy</li><li>Origin IP on a Leaflet map with TOR / VPN / hosting flags</li><li>Trace path, oldest hop first, with origin and out-of-order flags</li><li>Header anomalies and attachment findings</li></ul><p class="scroll-note">Scroll the screenshot — it is the full page.</p>`},
+  graph:{html:'<img class="shot" src="assets/dashboard-graph.png" alt="Connections to past cases graph">',
+    t:'Connections graph', d:'<ul class="plain"><li>This case\'s domains, IPs and sender addresses</li><li>Plus everything they were seen with in other cases</li><li>Hover a node for its case count and how many were malicious</li><li><code>GET /runs/{id}/graph</code></li></ul>'},
+  campaigns:{html:'<img class="shot" src="assets/dashboard-campaigns.png" alt="Campaigns table">',
+    t:'Campaigns', d:'<ul class="plain"><li>Campaign ID, member cases, shared domains / IPs / senders</li><li>First-seen and last-seen</li><li>Click a case ID to open it</li><li><code>GET /campaigns</code></li></ul>'},
+  pdf:{html:`<div class="card" style="font-size:12.5px; line-height:1.9;">
+      <div class="eyebrow" style="margin-bottom:8px;">Forensic PDF · generated in the browser</div>
+      <b>Classification</b> — verdict class + confidence · attribution + reason · campaign ID · every risk factor<br>
+      <b>Email forensics</b> — From / Return-Path / Reply-To · SPF / DKIM / DMARC + policy · alignment ·
+      origin IP, location, ISP, ASN · TOR / VPN / hosting · full delivery path · header anomalies · attachment hashes and flags<br>
+      <b>Investigation</b> — findings, pages inspected, VirusTotal breakdown, similar past cases</div>`,
+    t:'PDF report', d:'<ul class="plain"><li>One click from the case page</li><li>Contains every field the problem statement lists for a forensic report</li><li>A markdown report is also saved server-side for every case</li></ul>'},
+};
+function showShot(k){
+  document.querySelectorAll('#shotSeg button').forEach(b=>b.classList.toggle('on', b.dataset.s===k));
+  $('shotView').innerHTML = SHOTS[k].html;
+  $('shotText').innerHTML = `<div class="eyebrow" style="margin-bottom:10px;">${SHOTS[k].t}</div>${SHOTS[k].d}`;
+}
+document.querySelectorAll('#shotSeg button').forEach(b=> b.addEventListener('click', ()=>showShot(b.dataset.s)));
+showShot('run');
+
+document.getElementById('clockLabel').textContent = 'security-copilot v2 // SIH26106 // ' + new Date().toISOString().slice(0,10);
+updateRail();
+</script>
+</body>
+</html>
