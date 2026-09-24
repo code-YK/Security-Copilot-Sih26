@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "security-copilot",
+  "version": "1.0.0",
+  "description": "Automatic phishing detection as you browse, backed by the security-copilot agent.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "activeTab", "scripting", "webNavigation", "tabs", "alarms"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "minimum_chrome_version": "96"
+}
