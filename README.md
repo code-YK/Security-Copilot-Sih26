@@ -1,212 +1,208 @@
-# security-copilot
+# Security-Copilot v2 — Email Forensic Intelligence
 
-A personal security assistant with three ways in — a Chrome extension, a web dashboard, and a terminal — all
-backed by one [LangGraph](https://github.com/langchain-ai/langgraph) agent. Paste a URL, paste an email, or just
-browse normally: a fast local model gives an instant read on everything you visit, and on request the full agent
-investigates properly — a real headless-browser sandbox, WHOIS/VirusTotal, DOM and hosting fingerprinting, a
-memory of past investigations, and a web search to find the real site if brand impersonation is suspected — then
-returns a plain-English verdict in the five SIH26106 classes — **legitimate / suspicious / impersonated /
-phishing / fraud-related** — with a risk score, a reason, an attribution category, and (when relevant) links to
-the legitimate site it thinks you meant to visit. For a raw email (.eml / full headers) it also runs header
-forensics: the Received trace path, SPF/DKIM/DMARC, origin-IP geolocation with VPN/TOR/hosting correlation,
-static attachment analysis, and correlation with past cases into campaigns.
+**Smart India Hackathon 2026 · Problem Statement SIH26106** — *AI-Powered Email Threat Detection, GeoLocation and
+Forensic Intelligence Platform* (AICTE Cyber Security Cell · Theme: Blockchain & Cybersecurity).
 
-This is a from-scratch POC, not a production product — see [Status](#status) for what's real vs. in progress.
+Drop in a raw email (`.eml` or the full message with headers) and one [LangGraph](https://github.com/langchain-ai/langgraph)
+agent works out:
+
+- **whether it's malicious:** a verdict in the five SIH26106 classes (**legitimate / suspicious / impersonated /
+  phishing / fraud-related**) with a 0–100 risk score and a plain-English reason
+- **where it came from:** the Received trace path, the originating IP, geolocation, and VPN/TOR/hosting flags
+- **whether the sender is real:** SPF, DKIM and DMARC with domain alignment
+- **what's attached:** static attachment analysis (real file type, macros, ClamAV); files are never opened
+- **who is probably behind it:** a rule-based attribution category
+- **what else it's connected to:** a graph of shared domains/IPs/senders across cases, and campaign clusters
+
+Everything is available from a web dashboard (with a forensic PDF report), a Chrome extension, a REST API and a
+terminal CLI. The v1 link/URL investigation (sandboxed browser, WHOIS, VirusTotal, brand-impersonation search)
+is still there, and every link inside an email gets that same investigation.
 
 ## What it does
 
-- **Two-tier detection.** Every page you navigate to (and every email you open, from the popup) gets an instant,
-  local, no-LLM read first — an ONNX URL model, a BERT text model, a cached VirusTotal lookup. Only when that's
-  ambiguous, or you ask for it, does the full agent run. You get instant feedback on everything, and a real
-  investigation on demand.
-- **Investigates, it doesn't just classify.** The agent decides for itself which tools to call and how deep to
-  go — a page that looks fine after one look gets a quick "safe"; a page with a login form on an unfamiliar
-  domain gets a screenshot, a WHOIS/VirusTotal check, a DOM/hosting fingerprint, a model score, and sometimes a
-  second look at a suspicious link found on the page, before it answers.
-- **Reads whole emails, not just their wording.** Every link found in a pasted or opened email gets the exact
-  same investigation a standalone URL would — deduplicated to one per domain, capped so it stays bounded. An
-  email's own language and its links are treated as two separate signals; either one alone can be enough to call
-  the whole email dangerous.
-- **Fingerprints the page, not just the URL.** Beyond content, the sandbox checks whether a page's images,
-  scripts, and stylesheets are hotlinked from a different (often the real) domain — a common tell for a cloned
-  phishing kit — and captures the page's real HTTP response headers and resolved server IP.
-- **Remembers.** Every fresh investigation is embedded and added to a similarity index, so a brand-new domain
-  using a trick structurally identical to something seen before (a familiar brand-impersonation pattern, hosting
-  shape, or evasion trick) can be recognized even when nothing about the literal URL matches anything on a
-  blocklist yet.
-- **Catches brand impersonation.** If a domain embeds a well-known brand name in a way that isn't that brand's
-  real site (`wmw-google-com.loca.lt`), the agent searches for the real company and surfaces its actual site(s)
-  alongside the verdict.
-- **Reports outward instead of attacking back.** A confirmed-dangerous URL can be reported with one click:
-  added to this tool's own blocklist (enforced immediately, including blocking the tab's navigation with an
-  interstitial page) and submitted to VirusTotal with a malicious vote — the legal, effective alternative to
-  "hacking back."
-- **Explains itself, never leaks internals.** Every verdict is a few plain sentences citing what the tools
-  actually showed — never a tool or vendor name, just what was actually found.
-- **Every check is recorded.** A local SQLite history + a per-case markdown report (screenshot, redirect chain,
-  every tool call) + a polished PDF export from the dashboard — all browsable from the dashboard or `GET /runs`.
-- **Email header forensics (SIH26106).** A raw email is parsed with the stdlib `email` package: the Received
-  chain is walked oldest-first to find the originating server ("hop-0"), with out-of-order hops and
-  From/Return-Path/Reply-To mismatches flagged; SPF/DKIM/DMARC are checked (`checkdmarc`, `dkimpy`); the origin
-  IP is geolocated (MaxMind GeoLite2 offline, ip-api.com fallback) and checked against the Tor exit list, VPN and
-  datacenter ranges, and AbuseIPDB; attachments are hashed and statically inspected (real type vs. extension,
-  Office macros, optional ClamAV) — never opened. Hard authentication failures raise the risk score and feed a
-  rule-based attribution (`spoofed_domain`, `compromised_account`, `anonymized_infrastructure`, `direct_actor`).
-- **Correlates cases into campaigns.** Domains, IPs and sender addresses from every case form a NetworkX graph
-  ("seen together in a case"); similar malicious cases are clustered (DBSCAN over the case-memory embeddings)
-  into campaigns.
-- **Privacy by default.** PII in stored email bodies is masked with Microsoft Presidio (headers are kept as
-  evidence), and runs are deleted after `RETENTION_DAYS`.
+- **Header & protocol analysis.** The stdlib `email` parser extracts From, Return-Path, Reply-To and Message-ID,
+  and walks the Received chain oldest-first to find the originating server ("hop-0"). Out-of-order hops, missing
+  chains and sender mismatches (From ≠ Return-Path, Reply-To on another domain) are flagged.
+- **Sender authentication.** SPF (the delivering IP evaluated against the record, via `checkdmarc`), DKIM
+  (`dkimpy`) and DMARC with relaxed alignment. It reports both what the recipient's server recorded
+  (`Authentication-Results`) and a live re-check. A DMARC or SPF hard-fail raises the risk score and can escalate
+  the verdict.
+- **Origin traceability.** MaxMind GeoLite2 (offline) or ip-api.com gives country/region/city/ISP/ASN. The IP is
+  checked against the Tor Project exit list, X4BNet VPN and datacenter ranges, and AbuseIPDB. Sender-domain age
+  and MX/TXT records add infrastructure context.
+- **Attachment analysis.** SHA-256/MD5 hashes, magic-byte type versus the claimed extension (catches
+  `invoice.pdf.exe`), Office macro detection (`oletools`), and a ClamAV scan when a daemon is running. Attachments
+  are only ever held in memory.
+- **Investigates links, not just wording.** Every link in the email (decoded from the MIME body, including real
+  `<a href>` targets) gets a headless-browser sandbox visit, WHOIS/VirusTotal checks and a DOM/hosting
+  fingerprint. If brand impersonation is suspected, a web search finds the real site.
+- **Verdict + attribution.** The agent picks one of the five classes. `agent/verdict_rules.py` then applies plain
+  if/else rules: every point of risk has a written reason, and attribution is one of `spoofed_domain`,
+  `compromised_account`, `anonymized_infrastructure`, `direct_actor` or `unknown`.
+- **Identity correlation & campaigns.** Domains, IPs and sender addresses from every case form a NetworkX graph
+  ("seen together in a case"). Similar malicious cases are clustered with DBSCAN over SecureBERT case embeddings;
+  a campaign is a shared cluster ID. The agent can query this mid-investigation (`correlate_entity`).
+- **Dashboard & reporting.** Each case page shows the origin on a map, the trace path, auth results, attachment
+  findings, attribution and a connections graph. There's a campaign table and a one-click forensic PDF.
+- **Privacy & legal.** Microsoft Presidio masks PII in stored email bodies, while headers are kept as evidence.
+  Cases are deleted after `RETENTION_DAYS`. Confirmed-bad domains are reported (blocklist + VirusTotal), never
+  attacked back.
+- **Two-tier and fail-safe.** The extension gives an instant local read (ONNX URL model, BERT text model) on every
+  page and webmail message. The full agent runs on request. Every external lookup degrades independently, and an
+  LLM outage fails safe to "suspicious", never "legitimate".
 
 ## Architecture
-
-Four views of the same system, from the outside in: the whole thing, how a phishing check actually gets decided,
-what the email-forensics stage adds, and what the agent itself does internally.
 
 ### 1. Complete architecture
 
 ```mermaid
 flowchart TB
     subgraph Clients["Entry points"]
-        EXT["Chrome Extension\nautomatic per-page scan, popup,\nblocked-page interstitial"]
-        DASH["Dashboard (Next.js)\nhistory, live scans, PDF reports"]
-        CLI["cli.py\n(terminal)"]
+        EXT["Chrome Extension<br/>per-page quick check, webmail popup,<br/>blocked-page interstitial"]
+        DASH["Dashboard (Next.js)<br/>.eml upload, case pages,<br/>campaigns, PDF report"]
+        CLI["cli.py<br/>(terminal)"]
     end
 
-    EXT -->|"check / quick-check / report"| API
-    DASH -->|"check / GET runs"| API
+    EXT -->|"quick-check-* / check-*-stream /<br/>report / blocklist"| API
+    DASH -->|"check-* / runs / runs/{id}/graph /<br/>campaigns / report"| API
     CLI --> GRAPH
 
-    API["FastAPI\n(backend/api/)"] --> GRAPH["LangGraph agent\nrouter -> agent -> tools -> output\n(see diagram 4)"]
+    API["FastAPI<br/>(backend/api/)"] --> GRAPH["LangGraph agent (diagram 4)<br/>router → forensics → agent ⇄ tools → output"]
 
-    GRAPH --> FORENSICS["Email forensics node\nheaders, SPF/DKIM/DMARC, geolocation,\nattachments (see diagram 3)"]
-    GRAPH --> TOOLS["Agent tools: inspect_website, domain_reputation,\ncontent_classifier, web_search, recall_similar_cases,\ngeolocate_ip, correlate_entity"]
+    GRAPH --> VERDICT["Verdict<br/>5-class label, confidence, risk score,<br/>attribution, reason, alternatives"]
+    GRAPH -->|"after every run"| STORE[("history.db (PII-masked, retain_until)<br/>markdown report<br/>case-memory embeddings")]
 
-    GRAPH --> STORE[("history.db + markdown/PDF reports\n+ case-memory embeddings\n+ static blocklist")]
-    GRAPH --> VERDICT["Verdict\n5-class label, risk score, attribution,\nreason, alternatives"]
+    STORE --> CORR["correlation_graph.py<br/>entity graph + DBSCAN campaigns<br/>(computed when a case is read)"]
+    CORR --> API
 
     VERDICT --> EXT
     VERDICT --> DASH
     VERDICT --> CLI
-
 ```
 
-### 2. Phishing detection flow
-
-The two-tier strategy in full: what happens automatically with no click, and what happens when you (or the
-automatic scan) decides a real investigation is worth it.
+### 2. Detection flow
 
 ```mermaid
 flowchart TD
-    subgraph Automatic["Automatic — no click needed"]
-        NAV(["Every http(s) navigation"]) --> QCU["quick-check-url\nONNX model + cached VirusTotal"]
-        OPEN(["Popup opened on a\nrecognized webmail tab"]) --> QCE["quick-check-email\nBERT text model"]
-        QCU --> BANNER["Banner / popup result\nquiet toast if safe,\npersistent banner if not"]
-        QCE --> BANNER
+    subgraph Automatic["Automatic — extension, no LLM"]
+        NAV(["Every http(s) navigation"]) --> QCU["quick-check-url<br/>ONNX URL model + cached VirusTotal"]
+        OPEN(["Popup opened on a<br/>recognized webmail tab"]) --> QCE["quick-check-email<br/>BERT text model"]
     end
 
-    subgraph Deliberate["Deliberate investigation"]
-        INPUT(["A URL or email —\ndashboard, CLI, or the\nbanner's escalation button"]) --> ROUTER{"Blocklist or\n24h cache hit?"}
-        BANNER -.->|"Full report /\nRun full scan"| INPUT
-        ROUTER -->|"yes"| INSTANT["Verdict returned instantly,\nno agent run"]
-        ROUTER -->|"no"| AGENT["Full LangGraph agent\n(diagram 4)"]
-        AGENT --> LINKS{"Email with\nlinks found?"}
-        LINKS -->|"yes"| MULTI["Every link investigated like\nits own URL case\n(deduped to 1/domain, capped)"]
-        LINKS -->|"no"| SINGLE["The single URL investigated"]
-        MULTI --> VERDICT["Verdict + reason +\nlegitimate alternatives"]
-        SINGLE --> VERDICT
+    subgraph Deliberate["Full investigation"]
+        INPUT(["A URL, a pasted email, or a raw .eml —<br/>dashboard, CLI, API or extension"]) --> KIND{"Case type?"}
+        KIND -->|"link"| ROUTER{"Blocklist or<br/>24h cache hit?"}
+        ROUTER -->|"yes"| INSTANT["Verdict returned instantly,<br/>no agent run"]
+        ROUTER -->|"no"| AGENT
+        KIND -->|"email"| RAW{"Starts with an<br/>RFC822 header block?"}
+        RAW -->|"yes"| FOR["Forensics stage (diagram 3)<br/>+ links read from the decoded MIME body"]
+        RAW -->|"no — plain pasted text"| AGENT
+        FOR --> AGENT["Agent investigates the URL, or the body<br/>and every link (1 per domain, max 5)"]
+        AGENT --> VERDICT["Verdict + risk score + attribution"]
     end
 
-    VERDICT --> HISTORY[("history.db, report,\ncase-memory index")]
+    INSTANT --> HISTORY
+
+    QCU -.->|"Full report"| INPUT
+    QCE -.->|"Run full scan"| INPUT
+    VERDICT --> HISTORY[("history, report,<br/>case memory")]
 ```
 
 ### 3. Email forensics
 
+Runs in `agent/forensics_node.py` before the agent, only for raw RFC822 emails. Each step degrades on its own —
+a failed lookup is recorded as unavailable and the rest carry on.
+
 ```mermaid
 flowchart LR
-    EML(["Raw email (.eml)"]) --> HDR["analyze_email_headers\nReceived chain, hop-0 origin,\nsender mismatches"]
-    HDR --> AUTH["validate_email_auth\nSPF / DKIM / DMARC + alignment"]
-    AUTH --> REP["domain_reputation\nsender-domain age, MX/TXT"]
-    REP --> GEO["geolocate_ip\nlocation, ISP, TOR / VPN / hosting,\nAbuseIPDB"]
-    GEO --> ATT["scan_attachments\nhash, real type, macros, ClamAV"]
-    ATT --> AGENT["Agent reasons over findings\n+ body + links"]
-    AGENT --> RULES["verdict_rules.py\nrisk score, escalation,\nattribution"]
-    RULES --> OUT(["Verdict + campaign\n(correlation_graph.py)"])
+    EML(["Raw email (.eml)"]) --> HDR["analyze_email_headers<br/>Received chain, hop-0 origin,<br/>sender mismatches"]
+    HDR --> AUTH["validate_email_auth<br/>SPF / DKIM / DMARC<br/>+ alignment"]
+    AUTH --> REP["domain_reputation<br/>sender-domain WHOIS age,<br/>VirusTotal, MX/TXT<br/>(if a From: domain exists)"]
+    REP --> GEO["geolocate_ip<br/>location, ISP/ASN, TOR / VPN /<br/>hosting, AbuseIPDB<br/>(if an origin IP was found)"]
+    GEO --> ATT["scan_attachments<br/>hashes, real type,<br/>macros, ClamAV"]
+    ATT --> AGENT["agent_node<br/>reasons over findings<br/>+ decoded body + links"]
+    AGENT --> RULES["output_node → verdict_rules.py<br/>risk score, escalation,<br/>attribution"]
+    RULES --> OUT(["Verdict"])
 ```
 
 ### 4. LangGraph agent flow
 
 ```mermaid
 flowchart TD
-    ENTRY(["case_type: link / email"]) --> ROUTER["router_node\nlink only: blocklist + 24h cache"]
+    ENTRY(["case_type: link / email"]) --> ROUTER["router_node<br/>link only: blocklist + 24h cache"]
 
     ROUTER -->|"cache/blocklist hit"| OUTPUT
-    ROUTER -->|"unresolved"| FORENSICSNODE["forensics_node\nraw emails only (diagram 3)"]
+    ROUTER -->|"unresolved"| FORENSICSNODE["forensics_node<br/>raw emails only (diagram 3),<br/>no-op otherwise"]
     FORENSICSNODE --> AGENTNODE
 
-    AGENTNODE["agent_node\nLLM decides the next tool call,\nor that it's done"] -->|"tool call(s)"| TOOLNODE
+    AGENTNODE["agent_node<br/>LLM decides the next tool call,<br/>or that it's done"] -->|"tool call(s)"| TOOLNODE
     TOOLNODE["ToolNode"] -->|"result"| AGENTNODE
-    AGENTNODE -->|"no tool calls -\nfinal answer"| OUTPUT
+    AGENTNODE -->|"no tool calls -<br/>final answer"| OUTPUT
 
-    TOOLNODE -.-> T1["inspect_website\nheadless Chromium: screenshot,\nforms, DOM assets, deployment IP"]
-    TOOLNODE -.-> T2["domain_reputation\nWHOIS + VirusTotal"]
-    TOOLNODE -.-> T3["content_classifier\nONNX URL model / BERT text model"]
-    TOOLNODE -.-> T4["web_search\nDuckDuckGo, keyless"]
-    TOOLNODE -.-> T5["recall_similar_cases\nSecureBERT similarity over\npast investigations"]
-    TOOLNODE -.-> T6["geolocate_ip / correlate_entity"]
+    TOOLNODE -.-> T1["inspect_website<br/>headless Chromium: screenshot,<br/>forms, DOM assets, deployment IP"]
+    TOOLNODE -.-> T2["domain_reputation<br/>WHOIS + VirusTotal + MX/TXT"]
+    TOOLNODE -.-> T3["content_classifier<br/>ONNX URL model / BERT text model"]
+    TOOLNODE -.-> T4["web_search<br/>DuckDuckGo, keyless"]
+    TOOLNODE -.-> T5["recall_similar_cases<br/>SecureBERT similarity over<br/>past investigations"]
+    TOOLNODE -.-> T6["geolocate_ip<br/>any IP, e.g. a site's hosting IP"]
+    TOOLNODE -.-> T7["correlate_entity<br/>domain / IP / sender seen<br/>in past cases?"]
 
-    OUTPUT["output_node\nparse VERDICT / CONFIDENCE / REASON / ALTERNATIVES,\napply forensic rules + attribution,\nwrite router cache + case-memory index"]
+    OUTPUT["output_node<br/>parse VERDICT / CONFIDENCE / REASON / ALTERNATIVES,<br/>apply forensic rules + attribution,<br/>write the router cache (links only)"]
     OUTPUT --> VERDICT(["Verdict"])
+    VERDICT --> PERSIST["After the graph: mask PII (emails) →<br/>markdown report → history.db →<br/>case-memory embedding (fresh runs only)"]
 
-    AGENTNODE -.->|"recursion limit hit"| FAILSAFE1(["Inconclusive verdict\nsuspicious, 0.3 confidence"])
-    AGENTNODE -.->|"OpenRouter rate-limited\nor account error"| FAILSAFE2(["Fails safe: suspicious,\n'try again' / 'service unavailable'"])
+    AGENTNODE -.->|"recursion limit hit"| FAILSAFE1(["Inconclusive verdict<br/>suspicious, 0.3 confidence"])
+    AGENTNODE -.->|"OpenRouter rate-limited<br/>or account error"| FAILSAFE2(["Fails safe: suspicious,<br/>'try again' / 'service unavailable'"])
 ```
 
 Full breakdown of every backend file: [backend/README.md](backend/README.md).
 
 ## Quick start
 
+Prerequisites: Python 3.11+, Node.js with npm, and [pnpm](https://pnpm.io) for the dashboard. On Windows, run
+the scripts from **Git Bash**.
+
 **1. Install** (one-time):
 
 ```bash
-git clone https://github.com/VatsalMehta-0523/sentinelai-cyber-security.git
-cd sentinelai-cyber-security
-./download_everything.bash    # venv, Python deps, Playwright's Chromium,
-                               # warms the ML model cache, extension npm install + build
+git clone git@github.com:code-YK/Security-Copilot-Sih26.git
+cd Security-Copilot-Sih26
+./download_everything.bash    # venv, Python deps, spaCy model, Chromium, warms the ML model cache,
+                               # dashboard deps, extension build
 ```
 
-**2. Add your key** — edit `backend/.env`, set `OPENROUTER_API_KEY` (see below):
+**2. Add your key:** edit `backend/.env` and set `OPENROUTER_API_KEY` (see [API keys & data](#api-keys--data)).
+
+**3. Run:**
 
 ```bash
-$EDITOR backend/.env
+./start_all.bash               # backend on :8010 + dashboard on :3000
 ```
 
-**3. Run everything:**
+Open **http://localhost:3000/**, go to **Email scans**, and upload a `.eml`. Try
+`backend/tests/fixtures/phish_paypal.eml`: a spoofed PayPal message sent through a TOR exit node, with a lookalike
+link and a disguised `.exe`. Or use the CLI:
 
 ```bash
-./start_all.bash               # backend + dashboard
-```
-
-Open **http://localhost:3000/** for the dashboard (history, reports, live scans), or use the CLI:
-
-```bash
-source .venv/bin/activate && cd backend
+source .venv/bin/activate && cd backend     # Windows Git Bash: source .venv/Scripts/activate
+python cli.py email < tests/fixtures/phish_paypal.eml
 python cli.py link https://example.com
-python cli.py email    # paste text, then Ctrl-D
 ```
 
-**API keys:**
-- `OPENROUTER_API_KEY` — required, the agent's LLM (via OpenRouter, an OpenAI-compatible gateway to many
-  models). Get a key at https://openrouter.ai/keys. The default model is `openai/gpt-oss-120b` — reliable at
-  tool calling (which the agent needs). Change `OPENROUTER_MODEL` to any tool-calling model at
-  https://openrouter.ai/models. If OpenRouter rate-limits the key (429) or rejects it at the account level (402
-  out of credits, 401/403 invalid key), the case fails safe to a low-confidence "suspicious, unresolved" verdict
-  instead of crashing.
-- `ABUSEIPDB_API_KEY` — optional, origin-IP abuse score. Free tier: https://www.abuseipdb.com/register
-- MaxMind GeoLite2 — optional: put `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` in `backend/data/intel/`
-  (free account at https://www.maxmind.com/en/geolite2/signup). Without them, geolocation uses ip-api.com.
-- `VT_API_KEY` — optional, VirusTotal lookups in `domain_reputation` and the "Report & block" action. Degrades
-  gracefully if unset. Free: https://www.virustotal.com/gui/join-us
+### API keys & data
+
+- `OPENROUTER_API_KEY`: **required**, the agent's LLM via OpenRouter. Get a key at https://openrouter.ai/keys.
+  The default model is `openai/gpt-oss-120b`; change `OPENROUTER_MODEL` to any tool-calling model. A rate limit or
+  account error fails safe to a low-confidence "suspicious" verdict instead of crashing.
+- MaxMind GeoLite2: optional but recommended. Put `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` in
+  `backend/data/intel/` (free account: https://www.maxmind.com/en/geolite2/signup). Without them, geolocation
+  falls back to ip-api.com (keyless, 45 req/min).
+- `ABUSEIPDB_API_KEY`: optional, an abuse score for the origin IP. Free tier (1,000/day): https://www.abuseipdb.com/register
+- `VT_API_KEY`: optional, VirusTotal lookups and the "Report & block" action. Free: https://www.virustotal.com/gui/join-us
+- ClamAV: optional. If a `clamd` daemon is listening on `127.0.0.1:3310`, attachments are signature-scanned.
+- Threat-intel lists in `backend/data/intel/`: the X4BNet VPN/datacenter CIDR lists are vendored (refresh by
+  hand, see each file's header). The Tor exit list is downloaded and cached automatically.
+- Privacy: `PII_MASKING_ENABLED` (default on) and `RETENTION_DAYS` (default 90, `0` keeps cases forever).
 
 ### Manual setup (if you'd rather not run the scripts)
 
@@ -214,9 +210,9 @@ python cli.py email    # paste text, then Ctrl-D
 python3 -m venv .venv && source .venv/bin/activate   # venv lives at the repo root
 pip install torch --index-url https://download.pytorch.org/whl/cpu   # or the cu128 index for a CUDA GPU
 pip install -r backend/requirements.txt
+python -m spacy download en_core_web_sm              # PII masking model
 playwright install chromium
-python -m spacy download en_core_web_sm   # PII masking model
-cd backend && cp .env.example .env   # then fill in OPENROUTER_API_KEY
+cd backend && cp .env.example .env                   # then fill in OPENROUTER_API_KEY
 uvicorn api.app:app --reload --port 8010
 
 # In another terminal, the dashboard:
@@ -228,93 +224,89 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8010 pnpm dev
 
 | Script | What it does |
 |---|---|
-| `download_everything.bash` | One-time setup: repo-root venv, Python deps, Chromium, ML model cache, extension build. |
-| `start_all.bash` | Starts the backend + dashboard. |
+| `download_everything.bash` | One-time setup: repo-root venv, Python deps, spaCy model, Chromium, ML model cache (phishing classifiers + SecureBERT), dashboard deps, extension build. Safe to re-run. |
+| `start_all.bash` | Starts the backend + dashboard, and reports which optional forensics data (GeoLite2, ClamAV) it found. |
 
-Both expect the venv at `.venv/` in the repo root (not inside `backend/`) — that's what `download_everything.bash` creates.
+Both expect the venv at `.venv/` in the repo root (not inside `backend/`); `download_everything.bash` creates it.
 
-## Load the Chrome extension
+### Tests
 
-1. Make sure the backend is running first (`./start_all.bash`, or the manual steps above).
-2. `cd extension && npm install && npm run build` (already done for you by `download_everything.bash`).
-3. Open `chrome://extensions`, enable **Developer mode** (top right).
-4. Click **Load unpacked**, select `extension/dist/`.
-5. Browse normally — every `http(s)://` navigation gets an automatic, instant, local check (no LLM call): a
-   quiet toast if it looks fine, a persistent in-page banner if it doesn't, with a **Full report** button to
-   trigger a real investigation.
-6. Click the security-copilot icon in the toolbar for the popup:
-   - **Check this URL** — a full investigation of the current page's URL.
-   - **Check page text** — grabs the visible page text and every real link on the page and checks them (works
-     on any webapp).
-   - On a recognized webmail tab (Gmail, Outlook web, Yahoo Mail, Proton Mail), the popup automatically runs a
-     quick phishing read on the open email the moment it's opened, with a **Run full scan** button that
-     investigates the email's language *and* every link in it.
-7. On a confirmed-dangerous verdict, **Report & block** adds the domain to this tool's own blocklist (future
-   navigations to it are redirected to a warning page instead of loading) and reports it to VirusTotal.
-
-If your backend isn't on `http://127.0.0.1:8010`, change it in the extension's Settings (gear icon in the
-popup). Extension-specific details: [extension/README.md](extension/README.md).
+```bash
+cd backend && python -m pytest     # offline — DNS, geolocation, WHOIS and the LLM are stubbed
+```
 
 ## Dashboard
 
-A Next.js app (`dashboard/`) separate from the backend — history, live scans, and full run detail pages, with a
-"Report & block" action and a one-click, client-generated PDF report (verdict, findings, screenshot, VirusTotal
-breakdown) in place of a raw markdown download. Light and dark themes persist across navigation. Every run's
-detail page shows exactly what the agent found: the sandboxed screenshot, forms and where they submit to, DOM
-asset-hotlinking and hosting signals, the VirusTotal breakdown, and any similar past investigations the
-case-memory index recalled.
+A Next.js app (`dashboard/`), separate from the backend.
 
-## Email forensics
+- **Email scans:** paste a message or upload a `.eml`, then open the full forensic case page.
+- **Case page:** verdict class, risk score, campaign badge, attribution and its reason, and every risk factor. It
+  also shows SPF/DKIM/DMARC chips, the origin IP on a Leaflet map with TOR/VPN/hosting flags, the Received trace
+  path with flagged hops, header anomalies, attachment findings, and a connections graph to past cases. For
+  links, you also get the sandbox screenshot, forms, DOM/hosting signals and the VirusTotal breakdown.
+- **Campaigns:** a table of clusters with member cases, shared domains/IPs/senders, and first/last seen.
+- **PDF report:** one click, generated in the browser. It includes the verdict, confidence, SPF/DKIM/DMARC, the
+  origin IP and location, VPN/TOR/hosting flags, attribution, the campaign ID and the full delivery path.
 
-Upload a `.eml` (or paste the full raw message) in the dashboard's **Email scans** view, or
-`POST /check-email` with the raw text. The run page then shows SPF/DKIM/DMARC results, the origin IP on a map
-with TOR/VPN/hosting flags, the Received trace path with anomalous hops flagged, attachment findings, the
-attribution category, a graph of the case's connections to past cases, and its campaign (if clustered). The
-**Campaigns** view lists every cluster. The PDF report includes all of these fields.
+## Load the Chrome extension
 
-Threat-intel data lives in `backend/data/intel/`: X4BNet's VPN and datacenter CIDR lists are vendored (refresh by
-hand — see the header of each file); the Tor exit list is downloaded and cached automatically.
+1. Start the backend first (`./start_all.bash`).
+2. `cd extension && npm install && npm run build` (already done by `download_everything.bash`).
+3. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select `extension/dist/`.
+4. Browse normally. Every `http(s)://` navigation gets an instant local check: a quiet toast if it looks fine, a
+   persistent banner if not, with a **Full report** button.
+5. On a recognized webmail tab (Gmail, Outlook web, Yahoo Mail, Proton Mail), the popup runs a quick read on the
+   open email, with **Run full scan** for the full investigation.
+6. **Report & block** adds a confirmed-bad domain to this tool's blocklist and reports it to VirusTotal.
 
-Tests: `cd backend && python -m pytest` (offline; external lookups are stubbed).
+If your backend isn't on `http://127.0.0.1:8010`, change it in the extension's Settings. More detail:
+[extension/README.md](extension/README.md).
+
+## API
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /check-email` · `/check-email-stream` | Investigate an email (raw `.eml` text triggers forensics); the stream variant sends live progress over SSE |
+| `POST /check-links` · `/check-links-stream` | Investigate URLs |
+| `POST /quick-check-url` · `/quick-check-email` | Instant local ML read, no LLM |
+| `GET /runs` · `/runs/{id}` | Case history and full detail (includes `campaign_id`) |
+| `GET /runs/{id}/graph` · `/correlate?entity=` | Identity correlation graph |
+| `GET /campaigns` | Campaign clusters |
+| `POST /report` · `GET /blocklist` | Report & block |
+
+Interactive docs: `http://127.0.0.1:8010/docs` while the backend is running.
 
 ## Repository layout
 
 ```
-backend/        FastAPI + LangGraph agent, email-forensics tools (tools/), case-memory (memory/). Flat, one file per concern — see backend/README.md for the full tree.
-dashboard/      Next.js dashboard (history, live scans, run detail pages, PDF export). Talks to the backend
-                over the same API the extension uses.
-extension/      Chrome MV3 extension: automatic per-navigation quick scan, popup, in-page banner, and a
-                blocked-page interstitial for reported/blocklisted domains.
-download_everything.bash   One-time setup: venv, deps, Playwright, ML model cache, extension build.
-start_all.bash             Starts the backend + dashboard (port-safe — refuses to clobber something already listening).
+backend/        FastAPI + LangGraph agent (agent/), investigation and email-forensics tools (tools/),
+                case memory (memory/), privacy (utils/privacy.py), tests (tests/). See backend/README.md.
+dashboard/      Next.js dashboard: email/link scans, case pages, campaigns, PDF export.
+extension/      Chrome MV3 extension: per-navigation quick scan, webmail popup, in-page banner,
+                blocked-page interstitial.
+Presentation/   The v2 (SIH26106) presentation deck — open security-copilot-v2-presentation.html in a browser.
+download_everything.bash   One-time setup.
+start_all.bash             Starts the backend + dashboard (port-safe: refuses to clobber a listening port).
 ```
 
 ## Status
 
-**Real and tested end-to-end:** the agent (all 5 tools), the router's blocklist/cache fast path, the CLI, the
-FastAPI backend, the Next.js dashboard (history, filters, run detail pages, PDF export, theme persistence), run
-history + markdown/PDF reports, DOM asset-hotlinking + deployment fingerprinting, the case-memory recall index,
-"Report & block" (blocklist enforcement + VirusTotal submission), and the Chrome extension's automatic
-per-navigation quick scan + popup + blocked-page interstitial — all verified against live services (OpenRouter,
-VirusTotal, WHOIS, DuckDuckGo, real phishing test sites) and, for the extension, loaded into real Chrome.
+**Built and tested:**
+- **Email forensics:** header analysis, SPF/DKIM/DMARC, geolocation with VPN/TOR/hosting correlation,
+  attachment scanning, the 5-class verdict and attribution rules, the correlation graph and campaigns, and PII
+  masking with retention.
+  - These are covered by the offline test suite.
+  - They were smoke-tested through the API and dashboard with live DNS/geolocation lookups and a stubbed LLM
+    verdict.
+- **Carried over from v1 and verified against live services:** the link investigation agent, the router
+  fast path, the dashboard, and the Chrome extension.
 
-**Email forensics (SIH26106):** header analysis, SPF/DKIM/DMARC, geolocation + VPN/TOR/hosting correlation,
-attachment scanning, the 5-class verdict + attribution rules, the correlation graph + campaigns, PII masking and
-retention are covered by the offline test suite and were smoke-tested through the API and dashboard with a
-stubbed LLM verdict (the forensic lookups ran live).
-
-**In progress:** multi-link email phishing investigation — extracting every link from an email (regex over the
-text, plus real DOM hrefs from the extension) and investigating each one the same way a standalone URL case
-would, instead of relying on the model to notice links in unstructured text. The backend (extraction, dedup, the
-agent's per-link investigation prompt, a fast BERT-only `/quick-check-email`, a streaming `/check-email-stream`,
-and graceful degradation if the LLM provider is unavailable) and the extension's background-side plumbing
-(message handling, SSE consumption, session storage, badge updates — verified end-to-end via a loaded extension
-in a real browser, message to completed verdict) are built and tested. Two things remain unverified: real
-agent-driven investigation quality on a genuinely multi-link email (blocked at time of writing by the configured
-OpenRouter key being out of credits — degrades gracefully to an "unresolved" verdict rather than crashing, but
-that's not the same as seeing it actually reason about several links), and the popup's on-open DOM extraction on
-a real webmail tab specifically needs one manual click to confirm — it depends on Chrome's `activeTab` grant,
-which is tied to a genuine toolbar-icon click and isn't something browser automation can simulate.
+**Known limitations:**
+- The origin is the last public hop we can see: a TOR exit, VPN or compromised relay ends the trail.
+- The campaign clustering threshold (`CAMPAIGN_DBSCAN_EPS`) was tuned on only a handful of cases.
+- There is no labelled email benchmark yet, so detection quality hasn't been quantified.
+- The VPN/datacenter lists are refreshed manually.
+- ClamAV needs a separately installed daemon.
 
 ## License
 

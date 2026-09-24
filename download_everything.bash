@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# One-time setup for a fresh clone of security-copilot: a repo-root venv +
-# Python deps, Playwright's Chromium, a warm cache of the two ML models
-# (so the first real request isn't the one paying the download cost),
-# backend/.env scaffolding, and the extension's npm deps + a first build.
+# One-time setup for a fresh clone of Security-Copilot v2 (SIH26106): a
+# repo-root venv + Python deps, the spaCy model for PII masking, Playwright's
+# Chromium, a warm cache of the ML models (phishing classifiers + SecureBERT
+# for case memory / campaigns, so the first real request isn't the one paying
+# the download cost), backend/.env scaffolding, the dashboard's deps, and the
+# extension's npm deps + a first build.
 #
 # Safe to re-run — it never overwrites an existing .venv or .env, it
 # just makes sure everything is present.
@@ -11,6 +13,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 EXTENSION_DIR="$ROOT_DIR/extension"
+DASHBOARD_DIR="$ROOT_DIR/dashboard"
 VENV_DIR="$ROOT_DIR/.venv"
 
 # CPU-only by default (matches requirements.txt's guidance — swap this if
@@ -21,7 +24,12 @@ TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}"
 log()  { printf '\n\033[1;36m==> %s\033[0m\n' "$1"; }
 warn() { printf '\033[1;33m!! %s\033[0m\n' "$1"; }
 
-command -v python3 >/dev/null 2>&1 || { echo "python3 is required but not found." >&2; exit 1; }
+# Git Bash on Windows usually only has `python`, not `python3`.
+if command -v python3 >/dev/null 2>&1 && python3 -c "" >/dev/null 2>&1; then PYTHON=python3
+elif command -v python >/dev/null 2>&1; then PYTHON=python
+else echo "Python 3.11+ is required but not found." >&2; exit 1
+fi
+"$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))'   || { echo "Python 3.11+ is required (found $("$PYTHON" --version 2>&1))." >&2; exit 1; }
 command -v node    >/dev/null 2>&1 || { echo "node is required but not found (needed for the extension)." >&2; exit 1; }
 command -v npm     >/dev/null 2>&1 || { echo "npm is required but not found (needed for the extension)." >&2; exit 1; }
 
@@ -29,7 +37,7 @@ command -v npm     >/dev/null 2>&1 || { echo "npm is required but not found (nee
 log "Setting up Python virtualenv at $VENV_DIR"
 
 if [ ! -d "$VENV_DIR" ]; then
-  python3 -m venv "$VENV_DIR"
+  "$PYTHON" -m venv "$VENV_DIR"
   echo "Created .venv"
 else
   echo ".venv already exists, reusing it"
@@ -69,10 +77,11 @@ else
 fi
 
 # --- Warm the ML model cache ----------------------------------------------
-# Pre-downloads the two content_classifier models (see backend/tools/content_classifier.py)
+# Pre-downloads the two content_classifier models (backend/tools/content_classifier.py)
+# and SecureBERT (backend/memory/securebert.py — case memory + campaign clustering)
 # into the standard Hugging Face cache (~/.cache/huggingface) so the first
 # real check doesn't pay this cost mid-investigation.
-log "Pre-downloading ML models (this is the slow step — a few hundred MB)"
+log "Pre-downloading ML models (this is the slow step — about 1GB)"
 "$VENV_PY" - <<'PY'
 from huggingface_hub import hf_hub_download
 from transformers import pipeline
@@ -83,8 +92,21 @@ hf_hub_download(repo_id="pirocheto/phishing-url-detection", filename="model.onnx
 print("Downloading ealvaradob/bert-finetuned-phishing...")
 pipeline("text-classification", model="ealvaradob/bert-finetuned-phishing")
 
+print("Downloading ehsanaghaei/SecureBERT (case memory + campaigns)...")
+from transformers import AutoModel, AutoTokenizer
+AutoTokenizer.from_pretrained("ehsanaghaei/SecureBERT")
+AutoModel.from_pretrained("ehsanaghaei/SecureBERT")
+
 print("Models cached.")
 PY
+
+# --- Dashboard: deps (start_all.bash runs it) ----------------------------
+if command -v pnpm >/dev/null 2>&1; then
+  log "Dashboard: installing pnpm dependencies"
+  (cd "$DASHBOARD_DIR" && pnpm install)
+else
+  warn "pnpm not found — skipping the dashboard install. Install pnpm (https://pnpm.io); start_all.bash installs the deps on first run."
+fi
 
 # --- Extension: npm deps + first build -----------------------------------
 log "Extension: installing npm dependencies"
@@ -98,8 +120,11 @@ log "Setup complete."
 cat <<EOF
 
 Next steps:
-  1. Fill in backend/.env (OPENROUTER_API_KEY is required, VT_API_KEY is optional
-     but recommended — see backend/README.md for where to get both).
-  2. Run ./start_all.bash to start the backend + dashboard.
-  3. Load extension/dist/ as an unpacked extension in chrome://extensions.
+  1. Fill in backend/.env — OPENROUTER_API_KEY is required. Optional: ABUSEIPDB_API_KEY
+     (origin-IP abuse score) and VT_API_KEY (VirusTotal). See README.md § API keys & data.
+  2. Optional, recommended: put GeoLite2-City.mmdb and GeoLite2-ASN.mmdb (free MaxMind
+     account) in backend/data/intel/ for offline geolocation; otherwise ip-api.com is used.
+  3. Run ./start_all.bash to start the backend + dashboard, then open http://localhost:3000
+     and upload backend/tests/fixtures/phish_paypal.eml under Email scans.
+  4. Load extension/dist/ as an unpacked extension in chrome://extensions.
 EOF

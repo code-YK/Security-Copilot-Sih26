@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts the security-copilot backend plus the Next.js dashboard (the two
+# Starts the Security-Copilot v2 (SIH26106) backend plus the Next.js dashboard (the two
 # long-running processes this project has — the extension isn't a process,
 # it's loaded into Chrome separately, see extension/README.md). Run
 # ./download_everything.bash first if you haven't set anything up yet.
@@ -51,6 +51,11 @@ if ! grep -qE '^OPENROUTER_API_KEY=.+' .env; then
   printf '\033[1;33m!! No OPENROUTER_API_KEY set in backend/.env — the agent will fail on every case. Get a key at https://openrouter.ai/keys\033[0m\n'
 fi
 
+# Optional forensics data — everything works without it, just with less detail.
+[ -f "data/intel/GeoLite2-City.mmdb" ]   || warn "No GeoLite2-City.mmdb in backend/data/intel/ — geolocation falls back to ip-api.com (45 req/min)."
+grep -qE '^ABUSEIPDB_API_KEY=.+' .env   || warn "No ABUSEIPDB_API_KEY in backend/.env — origin-IP abuse scores are skipped."
+(exec 3<>"/dev/tcp/127.0.0.1/3310") 2>/dev/null || warn "No ClamAV daemon on 127.0.0.1:3310 — attachment signature scans are skipped (other attachment checks still run)."
+
 # Let the dashboard's browser origin (:3000) call the API. Overrides config.py's
 # default CORS list (no :3000 entry); the extension is still covered by the
 # chrome-extension:// regex in api/app.py.
@@ -91,6 +96,8 @@ cat <<EOF
 
   Dashboard:         http://localhost:$DASHBOARD_PORT/   (the UI)
   Health check:      http://127.0.0.1:$PORT/health
+  API docs:          http://127.0.0.1:$PORT/docs
+  Try it:            upload backend/tests/fixtures/phish_paypal.eml under Email scans
   Extension:         load extension/dist/ as an unpacked extension in chrome://extensions
                       (run 'cd extension && npm run build' first if you haven't)
   Stop everything:   Ctrl+C
