@@ -3,7 +3,7 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 
 # --- Settings / validation -----------------------------------------------------
-pydantic==2.10.4
+pydantic>=2.12.5,<3.0.0
 pydantic-settings==2.7.1
 
 # --- HTTP client (threat intel) -----------------------------------------------------
@@ -33,7 +33,7 @@ huggingface_hub==0.27.1
 ddgs==9.14.4
 
 # --- Email forensics: SPF/DMARC (DNS) + DKIM verification (tools/auth_validator.py) ---
-checkdmarc==6.0.3
+checkdmarc==5.9.6
 dkimpy==1.1.8
 dnspython==2.8.0
 

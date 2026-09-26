@@ -54,7 +54,12 @@ fi
 # Optional forensics data — everything works without it, just with less detail.
 [ -f "data/intel/GeoLite2-City.mmdb" ]   || warn "No GeoLite2-City.mmdb in backend/data/intel/ — geolocation falls back to ip-api.com (45 req/min)."
 grep -qE '^ABUSEIPDB_API_KEY=.+' .env   || warn "No ABUSEIPDB_API_KEY in backend/.env — origin-IP abuse scores are skipped."
-(exec 3<>"/dev/tcp/127.0.0.1/3310") 2>/dev/null || warn "No ClamAV daemon on 127.0.0.1:3310 — attachment signature scans are skipped (other attachment checks still run)."
+if ! (exec 3<>"/dev/tcp/127.0.0.1/3310") 2>/dev/null; then
+  # Best-effort, non-interactive (sudo -n never prompts for a password —
+  # if it's not already installed/permitted, this just no-ops silently).
+  command -v systemctl >/dev/null 2>&1 && sudo -n systemctl start clamav-daemon.socket clamav-daemon.service >/dev/null 2>&1 || true
+fi
+(exec 3<>"/dev/tcp/127.0.0.1/3310") 2>/dev/null || warn "No ClamAV daemon on 127.0.0.1:3310 — attachment signature scans are skipped (other attachment checks still run). Install it: ./download_everything.bash, or start it manually: sudo systemctl start clamav-daemon."
 
 # Let the dashboard's browser origin (:3000) call the API. Overrides config.py's
 # default CORS list (no :3000 entry); the extension is still covered by the

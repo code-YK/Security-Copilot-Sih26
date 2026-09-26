@@ -67,6 +67,44 @@ warn "If the sandbox fails to launch later with a missing-library error, also ru
 warn "  \"$VENV_PY\" -m playwright install --with-deps chromium"
 warn "(needs sudo — installs OS-level libraries, not run automatically by this script)"
 
+# --- ClamAV (optional — attachment signature scanning, tools/attachment_scanner.py) ---
+# Everything else about attachment analysis (hash, real-type-vs-extension,
+# macro detection) works without this. Debian/Ubuntu + sudo only; on other
+# platforms (or without sudo) this is skipped and the app degrades gracefully.
+if command -v clamd >/dev/null 2>&1; then
+  log "ClamAV already installed, skipping package install"
+elif command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
+  log "Installing ClamAV (clamd + freshclam) — may prompt for your sudo password"
+  sudo apt-get update -qq
+  sudo apt-get install -y clamav clamav-daemon
+else
+  warn "ClamAV not installed and no apt-get/sudo available — skipping (attachment signature scans will be unavailable; other attachment checks still run). Install manually: https://docs.clamav.net/manual/Installing.html"
+fi
+
+if command -v clamd >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1; then
+  CLAMD_CONF=/etc/clamav/clamd.conf
+  if [ -f "$CLAMD_CONF" ] && ! grep -q '^TCPSocket 3310' "$CLAMD_CONF"; then
+    log "Enabling ClamAV's TCP socket on 127.0.0.1:3310 (tools/attachment_scanner.py connects over TCP, not the Unix socket)"
+    printf '\nTCPSocket 3310\nTCPAddr 127.0.0.1\n' | sudo tee -a "$CLAMD_CONF" >/dev/null
+  fi
+
+  log "Starting clamav-freshclam (downloads virus definitions — first run is ~150MB and can take a few minutes)"
+  sudo systemctl enable --now clamav-freshclam >/dev/null 2>&1 || warn "Could not start clamav-freshclam — start it manually: sudo systemctl enable --now clamav-freshclam"
+
+  log "Waiting for virus definitions before starting clamd (up to 2 minutes)"
+  for _ in $(seq 1 24); do
+    [ -f /var/lib/clamav/main.cvd ] || [ -f /var/lib/clamav/main.cld ] && break
+    sleep 5
+  done
+
+  sudo systemctl daemon-reload
+  if sudo systemctl enable --now clamav-daemon.socket clamav-daemon.service >/dev/null 2>&1; then
+    log "clamav-daemon started and listening on 127.0.0.1:3310"
+  else
+    warn "Could not start clamav-daemon yet (virus definitions may still be downloading) — once freshclam finishes, run: sudo systemctl daemon-reload && sudo systemctl restart clamav-daemon.socket clamav-daemon.service"
+  fi
+fi
+
 # --- Backend: .env scaffolding -------------------------------------------
 cd "$BACKEND_DIR"
 if [ ! -f ".env" ]; then
