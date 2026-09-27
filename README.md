@@ -59,14 +59,16 @@ is still there, and every link inside an email gets that same investigation.
 ```mermaid
 flowchart TB
     subgraph Clients["Entry points"]
-        EXT["Chrome Extension<br/>per-page quick check, webmail popup,<br/>blocked-page interstitial"]
-        DASH["Dashboard (Next.js)<br/>.eml upload, case pages,<br/>campaigns, PDF report"]
+        EXT["Chrome Extension<br/>per-page quick check, automatic Gmail<br/>message check, webmail popup,<br/>blocked-page interstitial"]
+        DASH["Dashboard (Next.js)<br/>.eml upload, case pages,<br/>campaigns, PDF report,<br/>live streamed progress"]
         CLI["cli.py<br/>(terminal)"]
+        GMAIL["gmail-addon/ (Apps Script)<br/>auto-scanner labels + sidebar<br/>Check Report button"]
     end
 
     EXT -->|"quick-check-* / check-*-stream /<br/>report / blocklist"| API
-    DASH -->|"check-* / runs / runs/{id}/graph /<br/>campaigns / report"| API
+    DASH -->|"check-* / runs / runs/{id}/graph /<br/>campaigns / report / email-drafts /<br/>gmail-reports"| API
     CLI --> GRAPH
+    GMAIL -->|"quick-check-email /<br/>email-drafts / gmail-reports"| API
 
     API["FastAPI<br/>(backend/api/)"] --> GRAPH["LangGraph agent (diagram 4)<br/>router → forensics → agent ⇄ tools → output"]
 
@@ -79,19 +81,21 @@ flowchart TB
     VERDICT --> EXT
     VERDICT --> DASH
     VERDICT --> CLI
+    VERDICT -.->|"via dashboard, opened<br/>from the sidebar button"| GMAIL
 ```
 
 ### 2. Detection flow
 
 ```mermaid
 flowchart TD
-    subgraph Automatic["Automatic — extension, no LLM"]
+    subgraph Automatic["Automatic — no LLM, fast path"]
         NAV(["Every http(s) navigation"]) --> QCU["quick-check-url<br/>ONNX URL model + cached VirusTotal"]
-        OPEN(["Popup opened on a<br/>recognized webmail tab"]) --> QCE["quick-check-email<br/>BERT text model"]
+        OPEN(["Popup opened on a recognized webmail tab,<br/>OR (Gmail only) a real message is opened —<br/>detected automatically, once per message ever"]) --> QCE
+        SCAN(["Gmail auto-scanner (gmail-addon/Code.gs)<br/>every new message, every minute"]) --> QCE["quick-check-email<br/>BERT text model + Jev (2nd opinion) +<br/>links resolved via the same ML+VirusTotal<br/>corroboration quick-check-url uses"]
     end
 
     subgraph Deliberate["Full investigation"]
-        INPUT(["A URL, a pasted email, or a raw .eml —<br/>dashboard, CLI, API or extension"]) --> KIND{"Case type?"}
+        INPUT(["A URL, a pasted email, or a raw .eml —<br/>dashboard, CLI, API, extension, or the Gmail<br/>Add-on's Check Report button (via email-drafts)"]) --> KIND{"Case type?"}
         KIND -->|"link"| ROUTER{"Blocklist or<br/>24h cache hit?"}
         ROUTER -->|"yes"| INSTANT["Verdict returned instantly,<br/>no agent run"]
         ROUTER -->|"no"| AGENT
