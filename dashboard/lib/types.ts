@@ -27,6 +27,7 @@ export interface LegitimateAlternative {
 export interface Verdict {
   label: VerdictLabel
   confidence: number
+  risk_score?: number
   reason: string
   mitigation: string | null
   legitimate_alternatives: LegitimateAlternative[]

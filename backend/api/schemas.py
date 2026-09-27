@@ -29,6 +29,10 @@ class CheckEmailRequest(BaseModel):
 
 class QuickCheckEmailRequest(BaseModel):
     text: str
+    # Real anchor hrefs the extension popup already has DOM access to (same
+    # pattern as CheckEmailRequest.links above). Optional: a plain-text-only
+    # caller still gets the email-text checks, just no link checks.
+    links: list[str] = []
 
 
 class QuickCheckRequest(BaseModel):

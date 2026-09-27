@@ -44,6 +44,7 @@ geoip2==5.3.0
 # daemon to do anything; without one the scan is skipped. filetype is pure Python (no libmagic). ---
 filetype==1.2.0
 oletools==0.60.2
+pypdf==6.19.0
 pyclamd==0.4.0
 
 # --- Identity correlation graph (tools/correlation_graph.py); campaigns use scikit-learn below ---

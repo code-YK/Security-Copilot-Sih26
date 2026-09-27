@@ -29,6 +29,15 @@ tools/                 What the agent can call. One file each.
   domain_reputation.py      WHOIS + VirusTotal.
   content_classifier.py       pirocheto ONNX (URLs) / ealvaradob BERT (text).
   web_search.py                 Keyless DuckDuckGo (ddgs) — finds the real site when brand impersonation is suspected.
+  jev_client.py                   typesafe/jev-1.13 (OpenRouter's alpha Decisions API) — a second opinion
+                                   alongside the local BERT model for quick-check-email, informed by the
+                                   link check's verdict as context. Quick-check-only; can't replace the
+                                   agent's tool-calling LLM (single yes/no question, no tools).
+  link_reputation.py               Shared ML+VirusTotal URL corroboration, factored out of
+                                    routes_quick_check.py so the email quick-check's link scoring reuses
+                                    the same escalation/de-escalation rules instead of a second, drifting
+                                    implementation (see its own docstring for the false positives that
+                                    rule exists to avoid).
 
 cache/                  The router's fast path storage.
   sqlite_cache.py          24h TTL verdict cache, keyed by URL.
@@ -41,6 +50,21 @@ api/                    FastAPI app (spec section 10). One file per route.
   routes_check_links_stream.py    POST /check-links-stream — same, as Server-Sent Events (live agent progress).
   routes_check_email.py             POST /check-email
   routes_quick_check.py               POST /quick-check-url — fast ML+VT pre-check, no LLM.
+  routes_quick_check_email.py           POST /quick-check-email — fast pre-check for a raw email: links
+                                         resolved first via link_reputation.py (ML+VT), that verdict passed
+                                         as context into jev_client.py, Jev authoritative for the text
+                                         verdict when available (local BERT alone false-positives on
+                                         ordinary transactional text), no WHOIS (reserved for the full agent).
+  routes_email_drafts.py                  POST/GET /email-drafts — short-lived handoff slot for raw email
+                                           content between a caller that can't carry a large payload in a
+                                           URL (the Gmail add-on) and the dashboard, which reads it back and
+                                           auto-starts a real /check-email scan client-side.
+  routes_gmail_reports.py                   POST /gmail-reports, GET /gmail-reports/{message_id},
+                                             GET /gmail-reports/by-run/{run_id} — durable, bidirectional
+                                             Gmail-message-id <-> run_id mapping (JSON file, not SQLite;
+                                             the case data itself is still only in history.db). Lets the
+                                             Gmail add-on skip re-scanning an already-checked email, and the
+                                             dashboard link back to the original message.
   routes_intel.py                       GET /campaigns, GET /runs/{id}/graph, GET /correlate
   routes_runs.py                          GET /runs, GET /runs/{id} — history, consumed by dashboard/.
   routes_health.py                          GET /health
@@ -57,8 +81,8 @@ middleware/               Rate limiting, request logging, error handling.
 utils/                     Shared helpers: validators.py (URL/domain parsing), screenshots.py
                            (save a tool's screenshot to disk), tool_messages.py (extract a tool's
                            full result regardless of content_and_artifact vs plain response format).
-data/                       Blocklist, cache.db, history.db, screenshots/, reports/ — all gitignored
-                             except blocklist.txt and the bundled playbooks/datasets.
+data/                       Blocklist, cache.db, history.db, gmail_reports.json, screenshots/, reports/ —
+                             all gitignored except blocklist.txt and the bundled playbooks/datasets.
 ```
 
 Every "not yet built" file says so in its own module docstring, with a

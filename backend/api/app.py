@@ -21,6 +21,8 @@ from api.routes_check_email import router as check_email_router
 from api.routes_check_email_stream import router as check_email_stream_router
 from api.routes_check_links import router as check_links_router
 from api.routes_check_links_stream import router as check_links_stream_router
+from api.routes_email_drafts import router as email_drafts_router
+from api.routes_gmail_reports import router as gmail_reports_router
 from api.routes_health import router as health_router
 from api.routes_intel import router as intel_router
 from api.routes_quick_check import router as quick_check_router
@@ -92,6 +94,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(check_links_router)
     app.include_router(check_links_stream_router)
+    app.include_router(email_drafts_router)
+    app.include_router(gmail_reports_router)
     app.include_router(check_email_router)
     app.include_router(check_email_stream_router)
     app.include_router(quick_check_router)

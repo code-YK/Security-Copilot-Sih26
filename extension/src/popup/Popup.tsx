@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { api, ApiError } from "@/lib/api";
+import { extractPageContent, MAX_PAGE_TEXT_CHARS } from "@/lib/pageContent";
 import { getPendingFullCheck, getStorage, getTabVerdict, type PendingFullCheck, type TabVerdict } from "@/lib/storage";
 import { isWebmailHost } from "@/lib/webmail";
 import type { QuickCheckEmailResponse, ReportResponse } from "@/types";
@@ -25,8 +26,6 @@ type ReportState =
   | { url: string; status: "loading" }
   | { url: string; status: "done"; result: ReportResponse }
   | { url: string; status: "error"; message: string };
-
-const MAX_PAGE_TEXT_CHARS = 20000;
 
 interface ActiveTab {
   id: number;
@@ -53,30 +52,6 @@ function hostnameOf(url: string): string {
     return new URL(url).hostname;
   } catch {
     return url;
-  }
-}
-
-// Grabs both the visible text AND every real anchor href on the page —
-// innerText alone misses "Click here"-style links entirely (the visible
-// text has no URL in it at all; only the href does), which matters a lot
-// more for an email than for a generic page-text check. `func` here runs
-// injected into the tab, not this module — it can't close over anything
-// from the outer scope, so the whole extraction has to be self-contained.
-async function extractPageContent(tabId: number): Promise<{ text: string; links: string[] }> {
-  try {
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        const text = document.body.innerText;
-        const links = Array.from(document.querySelectorAll("a[href]"))
-          .map((a) => (a as HTMLAnchorElement).href)
-          .filter((href) => href.startsWith("http"));
-        return { text, links: Array.from(new Set(links)).slice(0, 40) };
-      },
-    });
-    return result ?? { text: "", links: [] };
-  } catch {
-    return { text: "", links: [] };
   }
 }
 
@@ -201,7 +176,10 @@ export function Popup() {
         return;
       }
       try {
-        const result = await api.post<QuickCheckEmailResponse>("/quick-check-email", { text });
+        const result = await api.post<QuickCheckEmailResponse>("/quick-check-email", {
+          text,
+          links: extracted.links,
+        });
         if (!cancelled) setQuickEmailCheck({ status: "done", result, text, links: extracted.links });
       } catch {
         // A quick-check failure should never block using the popup —
@@ -408,6 +386,12 @@ export function Popup() {
                       (() => {
                         const { Icon, color, bg, border } = labelMeta(quickEmailCheck.result.label);
                         const { result, text, links } = quickEmailCheck;
+                        // How many independent signals actually weighed in —
+                        // Jev/WHOIS may have timed out and dropped silently,
+                        // so this reflects what really ran, not what was asked for.
+                        const signalCount = result.source.split("+").length;
+                        const dangerousLinks =
+                          result.breakdown?.links.filter((l) => l.label !== "safe") ?? [];
                         return (
                           <div className={`rounded-lg border ${border} ${bg} p-3`}>
                             <div className="flex items-center gap-2">
@@ -416,6 +400,33 @@ export function Popup() {
                                 {result.label === "unknown" ? "Quick scan unavailable" : `Quick scan: ${result.label}`}
                               </p>
                             </div>
+                            {result.label !== "unknown" && (
+                              <p className="mt-1 text-[11px] text-fog-dim">
+                                Cross-checked with {signalCount} signal{signalCount === 1 ? "" : "s"}
+                                {result.source.includes("jev") ? " (text model + Jev)" : " (text model only)"}
+                                {result.breakdown && result.breakdown.links.length > 0
+                                  ? ` · ${result.breakdown.links.length} link${
+                                      result.breakdown.links.length === 1 ? "" : "s"
+                                    } checked`
+                                  : ""}
+                              </p>
+                            )}
+                            {dangerousLinks.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {dangerousLinks.map((l) => (
+                                  <li
+                                    key={l.url}
+                                    className="truncate rounded border border-threat-critical/20 bg-threat-critical/5 px-2 py-1 text-[11px] text-threat-critical"
+                                    title={l.url}
+                                  >
+                                    {l.label === "dangerous" ? "⚠" : "?"} {l.domain}
+                                    {l.whois.available && l.whois.age_days != null && l.whois.age_days < 30
+                                      ? ` — registered ${l.whois.age_days}d ago`
+                                      : ""}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                             <button
                               onClick={() => runFullEmailScan(tab, text, links)}
                               className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2 text-xs font-medium text-fog transition-all duration-200 hover:border-accent/30 hover:bg-panel-raised hover:shadow-glow-accent"

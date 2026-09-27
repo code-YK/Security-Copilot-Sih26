@@ -110,6 +110,23 @@ class Settings(BaseSettings):
     # --- Tool: web_search (keyless DuckDuckGo via ddgs) ----------------------
     WEB_SEARCH_MAX_RESULTS: int = 5
 
+    # --- Quick-check-email: Jev (OpenRouter's alpha Decisions API) as a second
+    # opinion alongside the local BERT model, plus a WHOIS domain-age check on
+    # any links found in the email. All three signals run in parallel, each
+    # individually bounded by QUICK_CHECK_NETWORK_TIMEOUT_SECONDS, so the
+    # endpoint stays fast even if WHOIS or OpenRouter are slow — a timed-out
+    # signal is simply dropped, never blocks the others. Reuses OPENROUTER_API_KEY;
+    # no separate signup. Uses the same OPENROUTER_BASE_URL host but a
+    # different (alpha, not /v1) path, so it's not routed through llm_client.py.
+    JEV_MODEL_ID: str = "typesafe/jev-1.13"
+    JEV_DECISIONS_URL: str = "https://openrouter.ai/api/alpha/decisions"
+    # 1.5s was too tight for WHOIS specifically (measured ~1.7s on a normal
+    # network) and caused it to time out on almost every check; 2.5s lets it
+    # reliably complete while still keeping the whole quick-check well under
+    # the 10-40s full-agent scan.
+    QUICK_CHECK_NETWORK_TIMEOUT_SECONDS: float = 2.5
+    QUICK_CHECK_MAX_LINKS: int = 5
+
     # SecureBERT — embeds past cases for memory/case_index.py.
     SECUREBERT_MODEL: str = "ehsanaghaei/SecureBERT"
 

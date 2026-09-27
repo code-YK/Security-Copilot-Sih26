@@ -158,6 +158,14 @@ def _format_attachments(artifact: dict, _screenshot_path: Optional[str]) -> list
     for a in artifact.get("attachments") or []:
         lines.append(f"- `{a['filename']}` — {a.get('detected_mime')}, {a['size']} bytes, sha256 `{a['sha256']}`")
         lines.extend(f"  - **{f['code']}:** {f['detail']}" for f in a.get("flags") or [])
+        pdf = a.get("pdf")
+        if pdf and pdf.get("available"):
+            lines.append(f"  - PDF content: {pdf.get('page_count')} page(s) read in sandbox — no execution, structure/text only")
+            for link in pdf.get("link_verdicts") or []:
+                lines.append(f"    - link `{link['url']}` → **{link['label']}** ({link.get('source')})")
+            classification = pdf.get("text_classification")
+            if classification:
+                lines.append(f"    - extracted text classified: {classification.get('label')} ({classification.get('phishing_score', 0):.0%} phishing-style)")
     return lines
 
 

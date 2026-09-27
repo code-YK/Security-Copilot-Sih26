@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+.local_bin/
 .pytest_cache/
 .mypy_cache/
 
@@ -22,6 +23,7 @@ dist-extension/
 # Runtime state (SQLite verdict cache — router fast path, spec section 2)
 backend/data/cache.db
 backend/data/history.db
+backend/data/gmail_reports.json
 backend/data/screenshots/
 backend/data/reports/
 backend/data/intel/*.mmdb

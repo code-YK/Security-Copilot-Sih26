@@ -205,9 +205,21 @@ export default function Page() {
   // Old-style deep link (`/?run=<id>`, from before the dedicated /run/[id]
   // route existed) — redirect rather than break it, in case anything still
   // links to it (e.g. a bookmark, or a report generated before this change).
+  // `/?draft=<id>` is a different case (the Gmail add-on's "Check Report"
+  // button): switches to Email scans and lets that view auto-load + run it.
+  const [draftId, setDraftId] = useState<string | null>(null)
   useEffect(() => {
-    const runId = new URLSearchParams(window.location.search).get('run')
-    if (runId) router.replace(`/run/${runId}`)
+    const params = new URLSearchParams(window.location.search)
+    const runId = params.get('run')
+    if (runId) {
+      router.replace(`/run/${runId}`)
+      return
+    }
+    const draft = params.get('draft')
+    if (draft) {
+      setDraftId(draft)
+      setView('Email scans')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -291,7 +303,7 @@ export default function Page() {
         <div className="page-wrap">
           {view === 'Overview' && <Overview onNavigate={openView} onSelect={openRun} />}
           {view === 'Link scans' && <LinkScan onSelect={openRun} />}
-          {view === 'Email scans' && <EmailScan onSelect={openRun} />}
+          {view === 'Email scans' && <EmailScan onSelect={openRun} draftId={draftId} />}
           {view === 'Campaigns' && <Campaigns />}
           {view === 'History' && <History onSelect={openRun} />}
           {view === 'Settings' && <SettingsView />}
@@ -757,10 +769,11 @@ function LinkScan({ onSelect }: { onSelect: (r: Run) => void }) {
   )
 }
 
-function EmailScan({ onSelect }: { onSelect: (r: Run) => void }) {
+function EmailScan({ onSelect, draftId }: { onSelect: (r: Run) => void; draftId?: string | null }) {
   const router = useRouter()
   const [input, setInput] = useState('')
   const [running, setRunning] = useState(false)
+  const [steps, setSteps] = useState<string[]>([])
   const [result, setResult] = useState<{ sev: Severity; score: number; reason: string; mitigation: string | null; runId: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { runs, error: runsError } = useRuns('/runs?view=phishing&limit=100')
@@ -771,30 +784,72 @@ function EmailScan({ onSelect }: { onSelect: (r: Run) => void }) {
   const loadingRuns = runs === null && !runsError
   const rows = (runs ?? []).filter((r) => r.case_type === 'email').map(runFromSummary)
 
-  async function run() {
-    const text = input.trim()
-    if (!text || running) return
+  async function runWithText(text: string, gmailMessageId?: string | null) {
+    if (!text.trim() || running) return
     setRunning(true)
+    setSteps([])
     setResult(null)
     setError(null)
     try {
-      const v = await apiPost<{ label: VerdictLabel; confidence: number; risk_score?: number; reason: string; mitigation: string | null; run_id: string }>(
-        '/check-email',
-        { text },
-      )
+      let v: { label: VerdictLabel; confidence: number; risk_score?: number; reason: string; mitigation: string | null } | null = null
+      let runId = ''
+      for await (const event of apiPostStream('/check-email-stream', { text: text.trim() })) {
+        if (event.type === 'progress') {
+          setSteps((prev) => [...prev, event.label])
+        } else if (event.type === 'done') {
+          v = event.verdict
+          runId = event.run_id
+        }
+      }
+      if (!v) throw new Error('Stream ended without a verdict')
       setResult({
         sev: severityFromLabel(v.label),
         score: Math.round((v.risk_score ?? v.confidence ?? 0) * 100),
         reason: v.reason,
         mitigation: v.mitigation,
-        runId: v.run_id,
+        runId,
       })
+      // Only present when this came from the Gmail add-on's draft handoff —
+      // records the association so reopening that email shows this same
+      // report instead of the add-on offering to run a new one.
+      if (gmailMessageId) {
+        apiPost('/gmail-reports', { message_id: gmailMessageId, run_id: runId }).catch(() => {
+          // Best-effort: the case itself already succeeded and is saved to
+          // history regardless, this is only the Gmail-side convenience link.
+        })
+      }
     } catch (err) {
       setError(errorMessage(err))
     } finally {
       setRunning(false)
     }
   }
+
+  function run() {
+    return runWithText(input)
+  }
+
+  // Arrived via the Gmail add-on's "Check Report" button (/?draft=<id>):
+  // fetch the raw email the add-on handed off, populate the box, and start
+  // the scan immediately — the whole point of this path is "click a button
+  // in Gmail, land here, watch the report run," not another manual step.
+  useEffect(() => {
+    if (!draftId) return
+    let alive = true
+    apiGet<{ text: string; message_id: string | null }>(`/email-drafts/${draftId}`)
+      .then((draft) => {
+        if (!alive) return
+        setInput(draft.text)
+        void runWithText(draft.text, draft.message_id)
+      })
+      .catch((err) => {
+        if (alive) setError(errorMessage(err))
+      })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftId])
 
   return (
     <>
@@ -838,6 +893,18 @@ function EmailScan({ onSelect }: { onSelect: (r: Run) => void }) {
               </div>
               <div className="progress-bar">
                 <span />
+              </div>
+              <div className="steps steps-live">
+                {steps.map((step, i) => (
+                  <span key={i} className="done">
+                    <Check size={12} />
+                    {step}
+                  </span>
+                ))}
+                <span className="current">
+                  <Loader2 className="spin" size={12} />
+                  Working…
+                </span>
               </div>
             </div>
           )}

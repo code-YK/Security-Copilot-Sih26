@@ -10,7 +10,7 @@ agent works out:
   phishing / fraud-related**) with a 0–100 risk score and a plain-English reason
 - **where it came from:** the Received trace path, the originating IP, geolocation, and VPN/TOR/hosting flags
 - **whether the sender is real:** SPF, DKIM and DMARC with domain alignment
-- **what's attached:** static attachment analysis (real file type, macros, ClamAV); files are never opened
+- **what's attached:** file type/macro/ClamAV checks, plus a sandboxed structural read of PDF attachments — extracted text and links, embedded JavaScript/auto-launch/embedded-file detection; files are never opened or executed
 - **who is probably behind it:** a rule-based attribution category
 - **what else it's connected to:** a graph of shared domains/IPs/senders across cases, and campaign clusters
 
@@ -47,7 +47,8 @@ is still there, and every link inside an email gets that same investigation.
 - **Privacy & legal.** Microsoft Presidio masks PII in stored email bodies, while headers are kept as evidence.
   Cases are deleted after `RETENTION_DAYS`. Confirmed-bad domains are reported (blocklist + VirusTotal), never
   attacked back.
-- **Two-tier and fail-safe.** The extension gives an instant local read (ONNX URL model, BERT text model) on every
+- **Two-tier and fail-safe.** The extension (and the Gmail auto-scanner) give an instant local read (ONNX URL
+  model, BERT text model, VirusTotal corroboration, Jev as a second text-classification opinion) on every
   page and webmail message. The full agent runs on request. Every external lookup degrades independently, and an
   LLM outage fails safe to "suspicious", never "legitimate".
 
@@ -119,7 +120,7 @@ flowchart LR
     HDR --> AUTH["validate_email_auth<br/>SPF / DKIM / DMARC<br/>+ alignment"]
     AUTH --> REP["domain_reputation<br/>sender-domain WHOIS age,<br/>VirusTotal, MX/TXT<br/>(if a From: domain exists)"]
     REP --> GEO["geolocate_ip<br/>location, ISP/ASN, TOR / VPN /<br/>hosting, AbuseIPDB<br/>(if an origin IP was found)"]
-    GEO --> ATT["scan_attachments<br/>hashes, real type,<br/>macros, ClamAV"]
+    GEO --> ATT["scan_attachments<br/>hashes, real type, macros, ClamAV,<br/>PDF: text/links/JS sandboxed read"]
     ATT --> AGENT["agent_node<br/>reasons over findings<br/>+ decoded body + links"]
     AGENT --> RULES["output_node → verdict_rules.py<br/>risk score, escalation,<br/>attribution"]
     RULES --> OUT(["Verdict"])
@@ -224,8 +225,8 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8010 pnpm dev
 
 | Script | What it does |
 |---|---|
-| `download_everything.bash` | One-time setup: repo-root venv, Python deps, spaCy model, Chromium, ML model cache (phishing classifiers + SecureBERT), dashboard deps, extension build. Safe to re-run. |
-| `start_all.bash` | Starts the backend + dashboard, and reports which optional forensics data (GeoLite2, ClamAV) it found. |
+| `download_everything.bash` | One-time setup: repo-root venv, Python deps, spaCy model, Chromium, ML model cache (phishing classifiers + SecureBERT), dashboard deps, extension build, ClamAV. Safe to re-run. |
+| `start_all.bash` | Starts the backend + dashboard, and reports which optional forensics data (GeoLite2, ClamAV) it found. `WITH_TUNNELS=1 ./start_all.bash` also exposes both publicly (ngrok + `cloudflared`) for the Gmail integration — see [gmail-addon/](gmail-addon/README.md). Off by default. |
 
 Both expect the venv at `.venv/` in the repo root (not inside `backend/`); `download_everything.bash` creates it.
 
@@ -257,10 +258,23 @@ A Next.js app (`dashboard/`), separate from the backend.
    persistent banner if not, with a **Full report** button.
 5. On a recognized webmail tab (Gmail, Outlook web, Yahoo Mail, Proton Mail), the popup runs a quick read on the
    open email, with **Run full scan** for the full investigation.
-6. **Report & block** adds a confirmed-bad domain to this tool's blocklist and reports it to VirusTotal.
+6. On Gmail specifically, opening an actual message (not a mailbox list/search/settings view) triggers the same
+   quick check automatically — no popup click needed — the instant the URL's fragment identifies a real message
+   (e.g. `#inbox/<id>`). Fires **once per message, ever**: the result is cached, so reopening the same email later
+   never re-checks or re-alerts. This needs Gmail's host permission, already declared in `manifest.json`.
+7. **Report & block** adds a confirmed-bad domain to this tool's blocklist and reports it to VirusTotal.
 
 If your backend isn't on `http://127.0.0.1:8010`, change it in the extension's Settings. More detail:
 [extension/README.md](extension/README.md).
+
+## Gmail integration
+
+Two pieces, both Google Apps Script against your own Gmail account — see [gmail-addon/README.md](gmail-addon/README.md) for full setup:
+
+- **Auto-scanner:** a background trigger checks new mail every minute and applies a big, bold colored `Dangerous` / `Suspicious` / `Safe` label matching the backend's actual verdict, via the same fast quick-check path the extension uses (ML + Jev + VirusTotal, no LLM).
+- **Add-on:** a sidebar "Check Report" button on any open email. If that email's already been checked, jumps straight to the existing report; otherwise hands it off to the dashboard, which runs the full investigation and shows live progress there — nothing scans inside Gmail itself.
+
+Both need the backend (and, for the Add-on, the dashboard) reachable publicly — Apps Script runs on Google's servers, not your machine. `WITH_TUNNELS=1 ./start_all.bash` handles that.
 
 ## API
 
@@ -268,11 +282,14 @@ If your backend isn't on `http://127.0.0.1:8010`, change it in the extension's S
 |---|---|
 | `POST /check-email` · `/check-email-stream` | Investigate an email (raw `.eml` text triggers forensics); the stream variant sends live progress over SSE |
 | `POST /check-links` · `/check-links-stream` | Investigate URLs |
-| `POST /quick-check-url` · `/quick-check-email` | Instant local ML read, no LLM |
+| `POST /quick-check-url` | Instant local ML read + VirusTotal corroboration, no LLM |
+| `POST /quick-check-email` | Instant read: links resolved first (ML+VT, same corroboration as quick-check-url), that verdict passed as context into Jev (a second text-classification opinion via OpenRouter), Jev authoritative for the text verdict when available |
 | `GET /runs` · `/runs/{id}` | Case history and full detail (includes `campaign_id`) |
 | `GET /runs/{id}/graph` · `/correlate?entity=` | Identity correlation graph |
 | `GET /campaigns` | Campaign clusters |
 | `POST /report` · `GET /blocklist` | Report & block |
+| `POST` · `GET /email-drafts/{id}` | Short-lived handoff slot for raw email content — the Gmail add-on's "Check Report" button hands a large payload off this way rather than via a URL, the dashboard reads it back and auto-starts a scan |
+| `POST /gmail-reports` · `GET /gmail-reports/{message_id}` · `GET /gmail-reports/by-run/{run_id}` | Durable Gmail-message ↔ run mapping, so the add-on can skip re-scanning an already-checked email and the dashboard can link back to the original message |
 
 Interactive docs: `http://127.0.0.1:8010/docs` while the backend is running.
 
@@ -284,9 +301,11 @@ backend/        FastAPI + LangGraph agent (agent/), investigation and email-fore
 dashboard/      Next.js dashboard: email/link scans, case pages, campaigns, PDF export.
 extension/      Chrome MV3 extension: per-navigation quick scan, webmail popup, in-page banner,
                 blocked-page interstitial.
+gmail-addon/    Google Apps Script: background auto-scanner + a Gmail sidebar Add-on. See gmail-addon/README.md.
 Presentation/   The v2 (SIH26106) presentation deck — open security-copilot-v2-presentation.html in a browser.
 download_everything.bash   One-time setup.
 start_all.bash             Starts the backend + dashboard (port-safe: refuses to clobber a listening port).
+                            WITH_TUNNELS=1 also exposes both publicly for the Gmail integration.
 ```
 
 ## Status
@@ -300,6 +319,9 @@ start_all.bash             Starts the backend + dashboard (port-safe: refuses to
     verdict.
 - **Carried over from v1 and verified against live services:** the link investigation agent, the router
   fast path, the dashboard, and the Chrome extension.
+- **Gmail integration:** the auto-scanner and Add-on (`gmail-addon/`) were built and verified live end-to-end
+  against a real Gmail account and real phishing URLs — link scoring corroborated with VirusTotal the same
+  way the extension's quick-check does, Jev added as a second text-classification opinion.
 
 **Known limitations:**
 - The origin is the last public hop we can see: a TOR exit, VPN or compromised relay ends the trail.
@@ -307,6 +329,12 @@ start_all.bash             Starts the backend + dashboard (port-safe: refuses to
 - There is no labelled email benchmark yet, so detection quality hasn't been quantified.
 - The VPN/datacenter lists are refreshed manually.
 - ClamAV needs a separately installed daemon.
+- The Gmail integration needs the backend (and dashboard) exposed publicly (`WITH_TUNNELS=1`), and the
+  dashboard's tunnel URL changes on every full restart unless you set up a paid/reserved tunnel — see
+  gmail-addon/README.md.
+- No auth on the API/dashboard, no chain-of-custody (hashing/signing) on exported reports, no dedicated
+  business-email-compromise pattern detector — named gaps from an internal review against SIH26106's
+  problem statement, not yet closed.
 
 ## License
 

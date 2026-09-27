@@ -23,16 +23,26 @@
  * result if the backend agrees it's meaningful.
  */
 import { api, ApiError } from "@/lib/api";
-import { toSeverity } from "@/lib/verdict";
+import { extractPageContent, MAX_PAGE_TEXT_CHARS } from "@/lib/pageContent";
 import {
   clearPendingFullCheck,
   getPendingFullCheck,
   getStorage,
+  hasCheckedWebmailMessage,
+  markWebmailMessageChecked,
   setPendingFullCheck,
   setTabVerdict,
   updatePendingFullCheckStep,
 } from "@/lib/storage";
-import type { BackgroundToContentMessage, CheckLinksStreamEvent, ContentToBackgroundMessage, QuickCheckResponse } from "@/types";
+import { toSeverity } from "@/lib/verdict";
+import { extractGmailMessageId, isWebmailHost } from "@/lib/webmail";
+import type {
+  BackgroundToContentMessage,
+  CheckLinksStreamEvent,
+  ContentToBackgroundMessage,
+  QuickCheckEmailResponse,
+  QuickCheckResponse,
+} from "@/types";
 
 // Per-tab debounce: SPA route changes / redirect chains can fire several
 // onCommitted events in quick succession for what's conceptually one visit —
@@ -292,10 +302,94 @@ async function scanNavigation(tabId: number, url: string): Promise<void> {
   }
 }
 
+// ── Automatic webmail message check ────────────────────────────────────
+//
+// The same /quick-check-email (Jev + BERT text model + the ML+VirusTotal
+// link check, no LLM) the Gmail Add-on's "Check Report" and the popup's
+// on-open webmail scan already use — run automatically the moment a real
+// message is opened, instead of requiring either a click or the popup to
+// be manually opened. Deliberately Gmail-only for now (extractGmailMessageId
+// is Gmail-specific — see its docstring for why extending this to the
+// other WEBMAIL_HOSTS needs a per-provider URL parser each).
+//
+// Fires AT MOST ONCE per distinct message id, ever (see
+// lib/storage.ts's hasCheckedWebmailMessage) — not once per tab, not once
+// per browser session: reopening the same message next week won't
+// re-check or re-show anything. This is a deliberate product choice, not
+// a caching shortcut — repeatedly re-alerting on a message the user has
+// already seen the verdict for would just be noise.
+async function maybeAutoCheckEmail(tabId: number, url: string): Promise<void> {
+  const { autoScanEnabled } = await getStorage();
+  if (!autoScanEnabled) return;
+
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname;
+  } catch {
+    return;
+  }
+  if (!isWebmailHost(hostname)) return;
+
+  const messageId = extractGmailMessageId(url);
+  if (!messageId) return; // a list/folder/settings view, not an opened message
+
+  if (await hasCheckedWebmailMessage(messageId)) return;
+  // Claim before extracting/calling anything — see markWebmailMessageChecked's
+  // docstring for why this has to happen first, not after the check succeeds.
+  await markWebmailMessageChecked(messageId);
+
+  const extracted = await extractPageContent(tabId);
+  const text = extracted.text.slice(0, MAX_PAGE_TEXT_CHARS);
+  if (!text.trim()) return;
+
+  try {
+    const result = await api.post<QuickCheckEmailResponse>("/quick-check-email", {
+      text,
+      links: extracted.links,
+    });
+    await sendToTab(tabId, {
+      type: "SHOW_EMAIL_BANNER",
+      pageUrl: url,
+      label: result.label,
+      confidence: result.confidence,
+      text,
+      links: extracted.links,
+    });
+  } catch (error) {
+    // Same principle as scanNavigation: a check failure should never be
+    // loud. The message id is already marked checked either way — a
+    // transient backend hiccup means this one message silently never got
+    // checked, not an infinite retry loop on every future load.
+    console.warn("security-copilot: automatic webmail email check failed", error);
+  }
+}
+
 chrome.webNavigation.onCommitted.addListener((details) => {
   if (details.frameId !== 0) return; // main frame only, not iframes/ads
   void scanNavigation(details.tabId, details.url);
+  void maybeAutoCheckEmail(details.tabId, details.url);
 });
+
+// Gmail is a single-page app — opening a different email never fires
+// onCommitted at all, and (confirmed empirically: the automatic check
+// worked for the first email opened after a fresh page load, then silently
+// stopped firing for every email after that) Gmail doesn't consistently
+// use one single in-page navigation mechanism for it either — clicking an
+// email in the inbox list, using next/prev arrows, and keyboard shortcuts
+// (j/k) don't all go through the same code path internally. Listening to
+// BOTH of Chrome's two events for an in-page URL change covers it
+// regardless of which one Gmail used for a given interaction:
+//   - onReferenceFragmentUpdated: a plain hash-only change (#inbox/xyz -> #inbox/abc).
+//   - onHistoryStateUpdated: a pushState/replaceState-driven change.
+// Both call the same maybeAutoCheckEmail, which is already safe to call
+// twice for the same navigation — extractGmailMessageId + the
+// already-checked cache make it a no-op the second time.
+function onGmailUrlChanged(details: chrome.webNavigation.WebNavigationTransitionCallbackDetails): void {
+  if (details.frameId !== 0) return;
+  void maybeAutoCheckEmail(details.tabId, details.url);
+}
+chrome.webNavigation.onReferenceFragmentUpdated.addListener(onGmailUrlChanged);
+chrome.webNavigation.onHistoryStateUpdated.addListener(onGmailUrlChanged);
 
 // Fires before the navigation commits — the only event early enough to
 // redirect away instead of letting a blocklisted page load first and

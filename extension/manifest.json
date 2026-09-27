@@ -29,6 +29,15 @@
     }
   ],
   "permissions": ["storage", "activeTab", "scripting", "webNavigation", "tabs", "alarms"],
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://mail.google.com/*",
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*",
+    "https://outlook.office365.com/*",
+    "https://mail.yahoo.com/*",
+    "https://mail.proton.me/*"
+  ],
   "minimum_chrome_version": "96"
 }

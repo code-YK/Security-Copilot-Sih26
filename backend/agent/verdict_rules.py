@@ -67,6 +67,21 @@ def forensic_risk(forensics: dict) -> tuple[float, list[str], bool]:
     if "office_macros" in codes:
         bump += 0.20
         factors.append("An Office attachment contains VBA macros")
+    if codes & {"pdf_embedded_javascript", "pdf_launch_action"}:
+        bump += 0.35
+        factors.append("A PDF attachment contains embedded JavaScript or an auto-launch action")
+    if "pdf_embedded_files" in codes:
+        bump += 0.15
+        factors.append("A PDF attachment has files embedded inside it")
+    if "attachment_link_dangerous" in codes:
+        bump += 0.30
+        factors.append("A link inside an attachment is rated dangerous")
+    elif "attachment_link_suspicious" in codes:
+        bump += 0.15
+        factors.append("A link inside an attachment is rated suspicious")
+    if "attachment_text_suspicious" in codes:
+        bump += 0.15
+        factors.append("An attachment's text reads as phishing-style content")
 
     headers = forensics.get("analyze_email_headers") or {}
     for f in headers.get("flags") or []:
@@ -93,6 +108,15 @@ def _authenticated(auth: dict) -> bool:
         ((auth.get("dkim") or {}).get("result") == "pass" and bool(align.get("dkim_aligned")))
 
 
+# Labels the agent has actually confirmed malicious, as opposed to "suspicious"
+# — real elevated risk, but not a finding, just a caution. Attribution wording
+# below must never say "malicious" for a merely-suspicious verdict (confirmed
+# by a real case: SPF/DKIM/DMARC all passed, VirusTotal clean, one medium
+# header quirk — verdict was "suspicious" at 0.5 risk, but the attribution
+# text still asserted "yet is malicious", overstating what was actually found).
+_CONFIRMED_MALICIOUS_LABELS = {"phishing", "fraud-related", "impersonated"}
+
+
 def attribute(label: str, forensics: dict | None) -> tuple[str, str]:
     """Who is probably behind a malicious email. Order matters: a forged sender outranks everything."""
     if label == "legitimate":
@@ -106,16 +130,22 @@ def attribute(label: str, forensics: dict | None) -> tuple[str, str]:
     anonymized = bool(infra.get("anonymized"))
     whois = (forensics.get("domain_reputation") or {}).get("whois") or {}
     age = whois.get("age_days") if whois.get("available") else None
+    confirmed = label in _CONFIRMED_MALICIOUS_LABELS
 
     if _dmarc_failed(auth) or _spf_forged(auth):
         return "spoofed_domain", f"The message claims to be from {domain} but fails that domain's SPF/DMARC checks — the sender forged an address they don't control."
     if _authenticated(auth):
         if age is not None and age >= _ESTABLISHED_DOMAIN_DAYS:
-            return "compromised_account", f"The message is genuinely authenticated by {domain}, an established domain ({age} days old), yet is malicious — most likely a compromised mailbox or account on that domain."
+            if confirmed:
+                verdict_clause = "yet is malicious — most likely a compromised mailbox or account on that domain"
+            else:
+                verdict_clause = "but only rated 'suspicious', not confirmed malicious — if it does turn out malicious, a compromised mailbox or account on that domain is the most likely explanation, since the domain itself checks out"
+            return "compromised_account", f"The message is genuinely authenticated by {domain}, an established domain ({age} days old), {verdict_clause}."
         if anonymized:
             return "anonymized_infrastructure", f"The message authenticates for {domain} but was sent through TOR/VPN infrastructure to hide its origin."
         age_text = f"registered {age} days ago" if age is not None else "of unknown age"
-        return "direct_actor", f"The attacker appears to own {domain} ({age_text}) and sent the message from their own infrastructure."
+        owner = "attacker" if confirmed else "sender"
+        return "direct_actor", f"The {owner} appears to own {domain} ({age_text}) and sent the message from their own infrastructure."
     if anonymized:
         return "anonymized_infrastructure", "The message was sent through TOR/VPN infrastructure to hide its origin."
     return "unknown", "Authentication results are inconclusive — not enough evidence to attribute."

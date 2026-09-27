@@ -100,3 +100,36 @@ export async function getPendingFullCheck(tabId: number): Promise<PendingFullChe
 export async function clearPendingFullCheck(tabId: number): Promise<void> {
   await chrome.storage.session.remove(`pending_full_check_${tabId}`);
 }
+
+/** Which Gmail messages the automatic content check (background.ts's
+ * maybeAutoCheckEmail) has already run for — chrome.storage.LOCAL, not
+ * session, deliberately: the user asked explicitly that a message only
+ * ever gets checked/alerted on once, including across browser restarts,
+ * not just "once per tab session" the way TabVerdict above is. A plain
+ * array capped at MAX_CHECKED_MESSAGES with FIFO eviction — this is a
+ * "have I seen this" set, not data anything needs to read back, so no
+ * need for the verdict itself to live here (that's on the backend, via
+ * the same history.db every other check already records to). */
+const CHECKED_MESSAGES_KEY = "checkedWebmailMessageIds";
+const MAX_CHECKED_MESSAGES = 1000;
+
+export async function hasCheckedWebmailMessage(messageId: string): Promise<boolean> {
+  const stored = await chrome.storage.local.get(CHECKED_MESSAGES_KEY);
+  const ids = (stored[CHECKED_MESSAGES_KEY] as string[] | undefined) ?? [];
+  return ids.includes(messageId);
+}
+
+/** Claims a message id BEFORE the check actually runs (not after) — two
+ * near-simultaneous events for the same message (onCommitted firing right
+ * alongside onReferenceFragmentUpdated for the same navigation, which
+ * happens) must not both pass the "not yet checked" gate and each start
+ * their own check/banner. Idempotent: calling it twice for the same id is
+ * harmless. */
+export async function markWebmailMessageChecked(messageId: string): Promise<void> {
+  const stored = await chrome.storage.local.get(CHECKED_MESSAGES_KEY);
+  const ids = (stored[CHECKED_MESSAGES_KEY] as string[] | undefined) ?? [];
+  if (ids.includes(messageId)) return;
+  ids.push(messageId);
+  while (ids.length > MAX_CHECKED_MESSAGES) ids.shift();
+  await chrome.storage.local.set({ [CHECKED_MESSAGES_KEY]: ids });
+}

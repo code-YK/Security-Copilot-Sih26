@@ -62,11 +62,27 @@ export interface QuickCheckResponse {
  * on a recognized webmail tab (see lib/webmail.ts); "Run full scan"
  * escalates to the real agent via RUN_FULL_EMAIL_CHECK below, which does
  * investigate every link. */
+export interface QuickCheckEmailLinkResult {
+  url: string;
+  domain: string;
+  ml_score: number;
+  whois: { available: boolean; age_days?: number | null; detail?: string };
+  combined_score: number;
+  label: "dangerous" | "suspicious" | "safe";
+}
+
 export interface QuickCheckEmailResponse {
   label: "dangerous" | "suspicious" | "safe" | "unknown";
   confidence: number;
-  source: "ml_model" | "error";
+  // A "+"-joined list of which signals actually contributed, e.g.
+  // "ml_model+jev+whois" or just "ml_model" if Jev/WHOIS timed out —
+  // never a fixed union, since any subset can be present.
+  source: string;
   detail?: string;
+  breakdown?: {
+    email: { ml_score: number; jev: { available: boolean; phishing_score?: number } };
+    links: QuickCheckEmailLinkResult[];
+  };
 }
 
 /** Messages passed between background.ts (which owns navigation events and
@@ -78,6 +94,21 @@ export type BackgroundToContentMessage =
       label: "dangerous" | "suspicious" | "safe";
       confidence: number;
       source: QuickCheckResponse["source"];
+    }
+  // The automatic Gmail-message-open check (background.ts's
+  // maybeAutoCheckEmail) — fires at most once per distinct message id ever
+  // (see lib/storage.ts's hasCheckedWebmailMessage), unlike SHOW_BANNER's
+  // per-navigation URL scan. Carries the already-extracted `text`/`links`
+  // so the banner's "Full report" button can hand them straight to
+  // RUN_FULL_EMAIL_CHECK without re-extracting the page (which may have
+  // scrolled/changed since).
+  | {
+      type: "SHOW_EMAIL_BANNER";
+      pageUrl: string;
+      label: "dangerous" | "suspicious" | "safe" | "unknown";
+      confidence: number;
+      text: string;
+      links: string[];
     }
   | { type: "HIDE_BANNER" }
   | { type: "FULL_CHECK_STARTED" }

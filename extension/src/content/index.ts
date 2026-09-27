@@ -207,6 +207,83 @@
     cardEl = card;
   }
 
+  function emailLabelTitle(label: Label | "unknown"): string {
+    if (label === "dangerous") return "Dangerous email";
+    if (label === "suspicious") return "Suspicious email";
+    if (label === "safe") return "Looks safe";
+    return "Could not classify";
+  }
+
+  function emailMessageFor(label: Label | "unknown"): string {
+    if (label === "dangerous") return "This message's content and links read as a phishing attempt. Do not click any links or enter credentials.";
+    if (label === "suspicious") return "Something about this message's wording or links looks off. Worth a closer look before you trust it.";
+    if (label === "safe") return "security-copilot's automatic scan found nothing suspicious about this message.";
+    return "The automatic scan couldn't produce a confident verdict.";
+  }
+
+  // Shows once per distinct Gmail message (background.ts only ever sends
+  // this for a message id it hasn't checked before — see
+  // lib/storage.ts's hasCheckedWebmailMessage), so unlike showBanner's
+  // per-navigation URL scan there's no repeat-suppression logic needed
+  // here at all: if this fires, it's genuinely the first and only time.
+  function showEmailBanner(pageUrl: string, label: Label | "unknown", confidence: number, text: string, links: string[]): void {
+    const root = ensureHost();
+    hideBanner();
+
+    const card = document.createElement("div");
+    card.className = `card ${label === "unknown" ? "suspicious" : label}`;
+
+    if (label === "safe") {
+      card.innerHTML = `
+        <div class="row">
+          <span class="icon">${labelIcon("safe")}</span>
+          <div>
+            <div class="title safe">${emailLabelTitle(label)}</div>
+            <div class="sub">security-copilot &middot; email scan</div>
+          </div>
+        </div>
+      `;
+      root.appendChild(card);
+      cardEl = card;
+      safeDismissTimer = setTimeout(hideBanner, SAFE_TOAST_MS);
+      return;
+    }
+
+    const titleClass = label === "dangerous" ? "dangerous" : "suspicious";
+    card.innerHTML = `
+      <button class="close" aria-label="Dismiss">&times;</button>
+      <div class="row">
+        <span class="icon">${label === "dangerous" ? "⛔" : "⚠️"}</span>
+        <div>
+          <div class="title ${titleClass}">${emailLabelTitle(label)}</div>
+          <div class="sub">security-copilot &middot; ${Math.round(confidence * 100)}% confidence &middot; email scan</div>
+        </div>
+      </div>
+      <div class="msg">${emailMessageFor(label)}</div>
+      <div class="progress" style="display:none;"></div>
+      <div class="actions">
+        <button class="full-report primary">Full report</button>
+        <button class="dismiss">Dismiss</button>
+      </div>
+    `;
+
+    card.querySelector(".close")?.addEventListener("click", hideBanner);
+    card.querySelector(".dismiss")?.addEventListener("click", hideBanner);
+    card.querySelector(".full-report")?.addEventListener("click", (e) => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = "Investigating...";
+      try {
+        chrome.runtime.sendMessage({ type: "RUN_FULL_EMAIL_CHECK", text, links, pageUrl });
+      } catch {
+        // Extension context invalidated (e.g. mid-update) — nothing to recover.
+      }
+    });
+
+    root.appendChild(card);
+    cardEl = card;
+  }
+
   function hideBanner(): void {
     if (safeDismissTimer !== null) {
       clearTimeout(safeDismissTimer);
@@ -245,6 +322,9 @@
     switch (message?.type) {
       case "SHOW_BANNER":
         showBanner(message.url, message.label, message.confidence, message.source);
+        break;
+      case "SHOW_EMAIL_BANNER":
+        showEmailBanner(message.pageUrl, message.label, message.confidence, message.text, message.links);
         break;
       case "HIDE_BANNER":
         hideBanner();

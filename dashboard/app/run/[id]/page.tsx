@@ -11,6 +11,7 @@ import {
   History,
   Link2,
   Loader2,
+  Mail,
   Moon,
   ShieldCheck,
   ShieldHalf,
@@ -223,6 +224,7 @@ function RunReport({ detail }: { detail: RunDetail }) {
           <span>{relativeTime(detail.created_at)}</span>
           <DownloadReportButton detail={detail} />
           {detail.case_type === 'link' && <ReportBlockButton url={detail.raw_input} />}
+          {detail.case_type === 'email' && <ViewInGmailButton runId={detail.id} />}
         </div>
         {/* ── Visual score bar — colored by verdict classification, not the ── */}
         {/* raw number: this is confidence in the verdict, not a safety %. */}
@@ -370,6 +372,40 @@ function ReportBlockButton({ url }: { url: string }) {
       {state.status === 'loading' ? 'Reporting…' : 'Report & block'}
       {state.status === 'error' && <span className="report-block-error"> — {state.message}</span>}
     </button>
+  )
+}
+
+// Only renders when this case actually came from the Gmail add-on's
+// "Check Report" button (backend/api/routes_gmail_reports.py records that
+// association) — a case scanned from the dashboard's own paste-box has no
+// originating email to link back to, so this silently renders nothing.
+function ViewInGmailButton({ runId }: { runId: string }) {
+  const [messageId, setMessageId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    apiGet<{ message_id: string }>(`/gmail-reports/by-run/${runId}`)
+      .then((r) => alive && setMessageId(r.message_id))
+      .catch(() => {
+        // No association — expected for most cases, not an error to surface.
+      })
+    return () => {
+      alive = false
+    }
+  }, [runId])
+
+  if (!messageId) return null
+
+  return (
+    <a
+      className="button secondary run-view-in-gmail"
+      href={`https://mail.google.com/mail/u/0/#all/${messageId}`}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <Mail size={14} />
+      View in Gmail
+    </a>
   )
 }
 
