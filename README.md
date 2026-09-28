@@ -184,7 +184,7 @@ cd Security-Copilot-Sih26
 ./start_all.bash               # backend on :8010 + dashboard on :3000
 ```
 
-Open **http://localhost:3000/**, go to **Email scans**, and upload a `.eml`. Try
+Open **http://localhost:3000/**, go to **Investigate**, and drop in a `.eml` (or click one of the built-in specimens). Try
 `backend/tests/fixtures/phish_paypal.eml`: a spoofed PayPal message sent through a TOR exit node, with a lookalike
 link and a disguised `.exe`. Or use the CLI:
 
@@ -242,14 +242,22 @@ cd backend && python -m pytest     # offline — DNS, geolocation, WHOIS and the
 
 ## Dashboard
 
-A Next.js app (`dashboard/`), separate from the backend.
+A Next.js app (`dashboard/`), separate from the backend. Its design language — bone-and-ink chrome where colour
+only ever means a verdict, ultraviolet reserved for the AI agent — is shared with the Chrome extension.
 
-- **Email scans:** paste a message or upload a `.eml`, then open the full forensic case page.
-- **Case page:** verdict class, risk score, campaign badge, attribution and its reason, and every risk factor. It
-  also shows SPF/DKIM/DMARC chips, the origin IP on a Leaflet map with TOR/VPN/hosting flags, the Received trace
-  path with flagged hops, header anomalies, attachment findings, and a connections graph to past cases. For
-  links, you also get the sandbox screenshot, forms, DOM/hosting signals and the VirusTotal breakdown.
-- **Campaigns:** a table of clusters with member cases, shared domains/IPs/senders, and first/last seen.
+- **Command:** a dot-matrix world map of every case's traced origin (arcs to the analyst desk, TOR/VPN counts),
+  headline figures, the five-class verdict spectrum and 14-day activity.
+- **Investigate:** drop or paste a raw email (or a URL). The live "scan theatre" streams each forensic step as it
+  runs — a beam reads the header lines each check is using — then stamps the verdict with a risk dial. Three
+  built-in specimens (spoofed PayPal, booby-trapped PDF invoice, clean mail) for demos. The Gmail add-on's
+  **Check Report** hand-off (`/?draft=<id>`) lands here and starts automatically.
+- **Case file** (`/run/<id>`): chapters for Detect → Trace → Authenticate → Payload → Attribute → Report — the
+  verdict and every risk factor, the Received route hop by hop, origin map with TOR/VPN/hosting/AbuseIPDB, SPF/DKIM/DMARC
+  seals with alignment, sender identity and domain age, attachments (true type, macros, ClamAV, and the PDF
+  sandbox's JavaScript/launch/embedded-file and link verdicts), sandbox screenshots, VirusTotal vendors, attribution,
+  campaign, the connections graph, and a SHA-256 fingerprint of the stored evidence.
+- **Live feed:** a day-grouped timeline that refreshes every 15 seconds. **Campaigns:** clusters with the shared
+  evidence that links them. **Case files:** searchable, filterable history with CSV export.
 - **PDF report:** one click, generated in the browser. It includes the verdict, confidence, SPF/DKIM/DMARC, the
   origin IP and location, VPN/TOR/hosting flags, attribution, the campaign ID and the full delivery path.
 

@@ -1,0 +1,118 @@
+%%{init: {
+  "theme": "base",
+  "themeCSS": "* {font-family: Arial, Helvetica, sans-serif;} .tech{color:#5A6378;font-style:italic;font-size:24px;} .nodeLabel{line-height:1.35;} .cluster-label .nodeLabel{font-size:32px;line-height:1.25;} .edgeLabel{font-size:24px;font-style:italic;color:#5A6378;}",
+  "themeVariables": {
+    "fontFamily": "Arial, Helvetica, sans-serif",
+    "fontSize": "30px",
+    "primaryTextColor": "#1F2A44",
+    "lineColor": "#8A93A6",
+    "edgeLabelBackground": "#FFFFFF",
+    "clusterBkg": "#FFFFFF"
+  },
+  "flowchart": {
+    "htmlLabels": true,
+    "subGraphTitleMargin": {"top": 14, "bottom": 28},
+    "useMaxWidth": false,
+    "curve": "basis",
+    "nodeSpacing": 45,
+    "rankSpacing": 70,
+    "padding": 26,
+    "diagramPadding": 30,
+    "wrappingWidth": 480
+  }
+}}%%
+flowchart LR
+
+  %% ───────────── ① CAPTURE ─────────────
+  subgraph S1["<b>① CAPTURE</b> · three ways in"]
+    direction LR
+    EXT("<b>Browser extension</b><br/>scans every page & webmail,<br/>blocks bad sites<br/><span class='tech'>Chrome MV3 · React · Vite</span>")
+    DASH("<b>Analyst dashboard</b><br/>upload .eml, run scans,<br/>review cases<br/><span class='tech'>Next.js 16 · React 19 · Tailwind</span>")
+    API("<b>REST API</b><br/>for mail gateways & SOC tools<br/><span class='tech'>FastAPI · live SSE stream</span>")
+  end
+
+  %% ───────────── ② TRIAGE ─────────────
+  subgraph S2["<b>② TRIAGE</b> · instant first read"]
+    direction TB
+    ROUTER("<b>Router</b><br/>known-bad blocklist<br/>+ 24-hour verdict cache<br/><span class='tech'>SQLite</span>")
+    QUICK("<b>Quick check</b><br/>local ML scores URL & text,<br/>no LLM call<br/><span class='tech'>ONNX Runtime · BERT</span>")
+    ROUTER -->|"not seen before"| QUICK
+  end
+
+  %% ───────────── ③ FORENSICS ─────────────
+  subgraph S3["<b>③ FORENSICS</b> · always on raw email"]
+    direction TB
+    F1("<b>1 · Header trace</b><br/>mail-server hops → first sender<br/><span class='tech'>Python email parser</span>")
+    F2("<b>2 · Sender check</b><br/>SPF · DKIM · DMARC + alignment<br/><span class='tech'>checkdmarc · dkimpy</span>")
+    F3("<b>3 · Domain intel</b><br/>domain age, MX & TXT records<br/><span class='tech'>WHOIS · dnspython</span>")
+    F4("<b>4 · Origin IP</b><br/>city, ISP, ASN · TOR / VPN / hosting<br/><span class='tech'>GeoLite2 · AbuseIPDB</span>")
+    F5("<b>5 · Attachments</b><br/>hash, real file type, macros,<br/>never opened<br/><span class='tech'>oletools · ClamAV</span>")
+    F1 --> F2 --> F3 --> F4 --> F5
+  end
+
+  %% ───────────── ④ AI INVESTIGATION ─────────────
+  subgraph S4["<b>④ AI INVESTIGATION</b>"]
+    direction TB
+    AGENT("<b>LangGraph agent</b><br/>LLM reasons over the evidence,<br/>loops until confident<br/><span class='tech'>LangGraph · LLM via OpenRouter</span>")
+    TOOLS("<b>7 investigation tools</b><br/>Sandbox browser · <span class='tech'>Playwright</span><br/>Reputation · <span class='tech'>WHOIS, VirusTotal</span><br/>Phishing model · <span class='tech'>BERT, ONNX</span><br/>Brand search · <span class='tech'>DuckDuckGo</span><br/>Case memory · <span class='tech'>SecureBERT</span><br/>IP geolocation · <span class='tech'>GeoLite2</span><br/>Correlation · <span class='tech'>NetworkX</span>")
+    AGENT <-->|"calls tool ↔ reads result"| TOOLS
+  end
+
+  %% ───────────── ⑤ VERDICT & ACTION ─────────────
+  subgraph S5["<b>⑤ VERDICT & ACTION</b> · explainable"]
+    direction LR
+    RULES("<b>Rule engine</b><br/>risk score 0–100,<br/>a written reason per point<br/>5 labels + attribution<br/><span class='tech'>legitimate · suspicious · impersonated</span><br/><span class='tech'>phishing · fraud-related</span>")
+    O1("<b>Alert & block</b><br/><span class='tech'>extension banner</span>")
+    O2("<b>Origin map + trace path</b><br/><span class='tech'>Leaflet</span>")
+    O3("<b>Campaign graph</b><br/><span class='tech'>NetworkX · DBSCAN</span>")
+    O4("<b>Forensic PDF report</b><br/><span class='tech'>jsPDF</span>")
+    RULES --> O1
+    RULES --> O2
+    RULES --> O3
+    RULES --> O4
+  end
+
+  %% ───────────── ⑥ STORE & PROTECT ─────────────
+  subgraph S6["<b>⑥ STORE & PROTECT</b>"]
+    direction LR
+    D1[("<b>Case history</b><br/><span class='tech'>SQLite</span>")]
+    D2[("<b>Case memory</b><br/><span class='tech'>SecureBERT embeddings</span>")]
+    D3("<b>PII masking</b><br/><span class='tech'>Microsoft Presidio</span>")
+    D4("<b>Evidence</b><br/>SHA-256 hashes,<br/>raw headers kept")
+    D5("<b>Retention</b><br/>auto-delete after 90 days")
+  end
+
+  %% ───────────── main flow (subgraph → subgraph keeps inner layout) ─────────────
+  S1 ==> S2
+  S2 ==>|"unclear cases go deeper"| S3
+  S3 ==> S4
+  S4 ==> S5
+  S5 -.-> S6
+  S2 -.->|"known threat → instant verdict, no AI call"| S5
+
+  %% ───────────── styling ─────────────
+  classDef cap   fill:#FFFFFF,stroke:#2B6CB0,stroke-width:2px,color:#1F2A44,rx:12,ry:12
+  classDef tri   fill:#FFFFFF,stroke:#9A7300,stroke-width:2px,color:#1F2A44,rx:12,ry:12
+  classDef forn  fill:#FFFFFF,stroke:#C0394B,stroke-width:2px,color:#1F2A44,rx:12,ry:12
+  classDef ai    fill:#FFFFFF,stroke:#5B4BC4,stroke-width:2px,color:#1F2A44,rx:12,ry:12
+  classDef aiHot fill:#5B4BC4,stroke:#5B4BC4,stroke-width:2px,color:#FFFFFF,rx:12,ry:12
+  classDef out   fill:#FFFFFF,stroke:#2E8B62,stroke-width:2px,color:#1F2A44,rx:12,ry:12
+  classDef outHot fill:#2E8B62,stroke:#2E8B62,stroke-width:2px,color:#FFFFFF,rx:12,ry:12
+  classDef store fill:#FFFFFF,stroke:#5A6378,stroke-width:2px,color:#1F2A44,rx:12,ry:12
+
+  class EXT,DASH,API cap
+  class ROUTER,QUICK tri
+  class F1,F2,F3,F4,F5 forn
+  class TOOLS ai
+  class AGENT aiHot
+  class O1,O2,O3,O4 out
+  class RULES outHot
+  class D1,D2,D3,D4,D5 store
+
+  style S1 fill:#E6F1FB,stroke:#BFD8F1,stroke-width:2px,color:#2B6CB0
+  style S2 fill:#FFF6DA,stroke:#F1DE9C,stroke-width:2px,color:#9A7300
+  style S3 fill:#FCE8EA,stroke:#F2C1C7,stroke-width:2px,color:#C0394B
+  style S4 fill:#EEEBFC,stroke:#CFC8F5,stroke-width:2px,color:#5B4BC4
+  style S5 fill:#E6F6EE,stroke:#BDE5CF,stroke-width:2px,color:#2E8B62
+  style S6 fill:#F3F5F9,stroke:#DCE1EA,stroke-width:2px,color:#1F2A44
+  linkStyle default stroke:#8A93A6,stroke-width:3px

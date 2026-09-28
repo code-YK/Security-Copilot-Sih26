@@ -1,0 +1,197 @@
+=== IDEA TITLE ===
+Security-Copilot: Agentic AI for Email Threat Detection, Geolocation & Forensic Intelligence
+
+=== ABSTRACT / SUMMARY ===
+Security-Copilot is an AI-powered email threat detection and forensic intelligence platform that answers the three questions every cyber-crime investigator actually needs answered: Is this email malicious? Where did it really come from? And who is behind it — and what else is it connected to?
+
+Email is the front door of cyber fraud. Indians lost ₹22,495 crore to cyber fraud in 2025 (MHA / I4C), and Business Email Compromise alone cost victims $3.04 billion worldwide (FBI IC3 2025). Yet today's filters only block or deliver a message. They leave no forensic trail, analysts still check headers, SPF/DKIM/DMARC, IP addresses and WHOIS by hand across five or more separate tools, and AI-written lures, lookalike domains and relay chains slip past static rules. Related frauds are never linked into campaigns.
+
+Security-Copilot closes this gap with a two-speed architecture:
+
+1. Instant protection where people read mail. A Gmail Add-on automatically scans every new email and labels it Dangerous, Suspicious or Safe inside the inbox, while a Chrome extension checks every website before the click and automatically checks each Gmail message the moment it is opened. These instant verdicts come from a combined AI decision engine: Jev, our primary phishing classifier, decides the text verdict, informed by an ONNX URL model corroborated by VirusTotal, with a local BERT model as an always-available backup. The result: zero false alerts in our live Gmail testing.
+
+2. Deep forensic investigation on demand. An autonomous LangGraph AI agent investigates an email the way a trained analyst would — tracing the Received hop chain back to the originating server, verifying SPF, DKIM and DMARC with domain alignment, geolocating the origin IP (city, ISP, ASN) and flagging TOR, VPN and hosting infrastructure, visiting every link in a sandboxed headless browser, checking domain age and reputation, and scanning attachments in a sandbox (real file type, macros, ClamAV signatures, and PDF text, links and embedded JavaScript) without ever opening or executing them.
+
+Every case ends in an explainable verdict in the five classes the problem statement asks for — legitimate, suspicious, impersonated, phishing, fraud-related — with a 0–100 risk score in which every point carries a written reason, an attribution of the likely actor (spoofed domain, compromised account, anonymised infrastructure or direct actor), an origin map, a campaign ID that links it to related frauds using SecureBERT embeddings and DBSCAN clustering, and a one-click, court-ready forensic PDF report.
+
+Privacy and legality are built in: PII is masked with Microsoft Presidio while headers are preserved as evidence, cases auto-delete after 90 days, and confirmed threats are reported and blocked — never attacked back. The design is DPDP Act 2023-aligned and supports CERT-In's 6-hour incident-reporting mandate.
+
+This is not a concept — it is built and running. All 6 problem-statement components are delivered, powered by 12 AI and forensic tools, 26 automated tests, and 4 entry points (Gmail Add-on, Chrome extension, Next.js analyst dashboard and Python CLI). It needs ₹0 of paid threat-intelligence APIs and runs on an ordinary CPU, open-source and self-hostable. Next, we will anchor every case's evidence on a blockchain-backed, hash-chained ledger for tamper-proof chain of custody, extend ingestion to Outlook and IMAP, and pilot with colleges, cyber cells and banks on the way to national scale.
+
+Security-Copilot turns every suspicious email from a dead end into evidence: Detect → Trace → Attribute → Report.
+
+=== IDEA DESCRIPTION ===
+SECURITY-COPILOT
+AI-Powered Email Threat Detection, GeoLocation and Forensic Intelligence Platform
+Problem Statement SIH26106 · Theme: Blockchain & Cybersecurity · Team Red Eye
+
+Detect → Trace → Attribute → Report
+Not just "is this phishing?" — but where did it come from, who sent it, and what else is it connected to?
+
+────────────────────────────────
+1. THE PROBLEM
+────────────────────────────────
+Email remains the number-one entry point for cyber fraud, and the losses are enormous:
+• ₹22,495 crore lost by Indians to cyber fraud in 2025 (MHA / I4C).
+• $3.04 billion lost worldwide to Business Email Compromise in 2025 (FBI IC3 Internet Crime Report).
+
+The tools in use today were not built for investigation:
+• Filters only block or deliver. They produce no forensic trace of where a message came from or who sent it.
+• Investigators check raw headers, SPF/DKIM/DMARC, IP addresses, WHOIS and VirusTotal by hand, in five or more separate tools, for every single email.
+• AI-written lures now have flawless grammar, and lookalike domains and relay chains slip past static rules.
+• Related frauds are never linked, so the same gang can run the same campaign against thousands of victims and each report is investigated as a one-off.
+• Citizens, students and bank staff get no clear, plain-language warning before they click.
+
+Law-enforcement agencies, bank fraud units, SOC teams and institutions need a platform that detects the threat, traces its true origin, attributes the actor, links it to wider campaigns and produces evidence that stands up in court — in minutes, not days.
+
+────────────────────────────────
+2. OUR SOLUTION
+────────────────────────────────
+Security-Copilot is an agentic AI platform that investigates an email the way an expert cyber-forensics analyst would, and does it automatically.
+
+Drop in a raw email (.eml), a URL or pasted text — or simply receive mail in Gmail. An AI agent traces its route, verifies the sender, geolocates the origin, checks every link and attachment, remembers past cases, and returns a classified, attributed, explainable verdict with a complete forensic report.
+
+It works at two speeds:
+• INSTANT (seconds, automatic): every incoming email and every website visit gets an instant verdict, right inside Gmail and the browser.
+• DEEP (on demand): a full forensic investigation by an autonomous AI agent, streamed live to the analyst dashboard, ending in a court-ready report.
+
+────────────────────────────────
+3. HOW IT WORKS — ARCHITECTURE
+────────────────────────────────
+A. FOUR ENTRY POINTS
+• Gmail Add-on (Google Apps Script): a background auto-scanner checks new mail every minute and applies bold, coloured Dangerous / Suspicious / Safe labels directly in the inbox. A sidebar card on every open email shows its verdict instantly and, with one click ("Check Report"), launches a full investigation.
+• Chrome MV3 extension: checks every page before the user interacts with it, shows a quiet toast when a page is safe and a persistent warning banner when it is not, automatically checks each Gmail message the moment it is opened (once per message, never repeated), supports Gmail, Outlook web, Yahoo Mail and Proton Mail from the popup, and offers one-click Report & Block.
+• Analyst dashboard (Next.js): .eml upload, live step-by-step investigation progress, full forensic case pages, campaign views and one-click PDF reports.
+• Python CLI: URL and raw-email investigations straight from the terminal, for automation and SOC workflows.
+
+B. FAST TRIAGE — THE COMBINED AI DECISION ENGINE (instant)
+• Link check: every URL — the page being visited or each link inside an email — is scored by a local ONNX phishing-URL model and corroborated by VirusTotal. VirusTotal can both escalate a threat the model missed and overrule a false alarm on a legitimate domain.
+• Text verdict: Jev (typesafe/jev-1.13, served through OpenRouter's Decisions API) is our primary phishing classifier. It judges the intent of the email — is it trying to trick the reader into giving credentials, money or a click? — not its grammar, which makes it robust against flawless AI-written lures. Jev also receives the link verdict as context, so its reading of the text is informed by what the links really are. A local BERT phishing model runs alongside as a backup that takes over whenever Jev is unreachable.
+• Combined verdict: the text and link signals are fused into one Safe / Suspicious / Dangerous decision, shown as a banner in the browser and a coloured label in Gmail.
+• Accuracy: pairing Jev with VirusTotal-corroborated link scoring removed the false positives that single models produce on ordinary bank notifications and legitimate login pages. The result is zero false alerts in our live Gmail testing — users only see a warning when it matters.
+
+C. FULL INVESTIGATION — THE AUTONOMOUS AI AGENT (on demand)
+Built with FastAPI and LangGraph, with every step streamed live to the dashboard over Server-Sent Events.
+• Router: known-bad blocklist and a 24-hour verdict cache give repeat threats an instant answer.
+• Deterministic forensics — always run on a raw email, never left to the AI's discretion:
+  – Header & protocol analysis: From, Return-Path, Reply-To, Message-ID and the full Received chain, read oldest-first to find hop-0, the true originating server; out-of-order hops and sender mismatches flagged.
+  – Sender authentication: SPF evaluated against the delivering IP, DKIM signature verification and DMARC with domain alignment. The receiving server's own verdict is kept beside our live re-check, so rotated DKIM keys or changed DNS never erase evidence.
+  – Origin traceability: country, region, city, ISP and ASN of the origin IP via MaxMind GeoLite2 (offline), correlated with the Tor Project exit list, VPN and datacenter IP ranges and AbuseIPDB; sender-domain age, MX and TXT records add infrastructure context.
+  – Attachment & PDF sandbox: SHA-256/MD5 hashes, real file type versus claimed extension (catches invoice.pdf.exe), Office macro detection, ClamAV signature scanning, and a sandboxed read of PDFs that extracts their text and links, runs them through the same phishing and link-reputation checks, and detects embedded JavaScript, auto-launch actions and hidden embedded files — all without ever opening, rendering or executing the file.
+• LLM investigation agent: reasons over all the evidence and decides which tool to use next, looping until it is confident. Its toolkit: a sandboxed headless Chromium browser (screenshots, forms, hidden assets, hosting IP), WHOIS + VirusTotal domain reputation, ONNX + BERT classifiers, brand-impersonation web search, IP geolocation, entity correlation across past cases, and SecureBERT recall of similar past investigations.
+• Verdict rules: a transparent rule engine converts evidence into a 0–100 risk score where every point has a written reason (for example, a DMARC failure adds 30 points and an SPF hard-fail adds 20), escalates the verdict when hard evidence contradicts the AI, and assigns attribution.
+• Fail-safe by design: if the AI provider is down or rate-limited, the system fails safe to "suspicious" — never "legitimate" — and every external lookup degrades independently, so one outage never breaks an investigation.
+
+D. EVIDENCE, PRIVACY & CASE MEMORY
+• SQLite case history with raw headers preserved as evidence.
+• PII in email bodies masked with Microsoft Presidio before storage.
+• SecureBERT case embeddings give the platform a memory of every past investigation.
+• A NetworkX entity graph links senders, domains and IPs seen together; DBSCAN clustering groups related malicious cases into campaigns with a shared campaign ID.
+• 90-day retention with automatic deletion.
+
+E. ANALYST-FACING RESULT
+• Explainable verdict in the five PS classes, with risk score, written reasons and attribution.
+• Case page: origin on an interactive map, hop-by-hop trace path, SPF/DKIM/DMARC chips, attachment findings and a connections graph to past cases.
+• Campaigns table: clusters of related frauds with shared domains, IPs and senders, first and last seen.
+• One-click forensic PDF report with every field an investigator needs.
+• Gmail labels and sidebar card for end users; browser warning with Report & Block.
+
+────────────────────────────────
+4. HOW WE MEET EVERY PS REQUIREMENT
+────────────────────────────────
+1) Detection Engine → Combined AI engine (Jev + ONNX + VirusTotal + BERT) for instant triage, plus a LangGraph agent that classifies into the five required classes — legitimate, suspicious, impersonated, phishing, fraud-related — with an explainable 0–100 risk score.
+2) Header & Protocol Analysis → Full Received-chain parsing to hop-0, sender-mismatch detection, and SPF, DKIM and DMARC validation with alignment.
+3) Origin Traceability (GeoLocation) → Origin IP geolocation to city, ISP and ASN, with TOR, VPN and hosting detection, AbuseIPDB reputation and sender-domain infrastructure.
+4) Identity Correlation → Rule-based attribution (spoofed domain, compromised account, anonymised infrastructure, direct actor), a cross-case entity graph, and campaign clustering over SecureBERT embeddings.
+5) Alerting, Dashboard & Reporting → Gmail labels and sidebar card, browser warnings and blocking, an analyst dashboard with maps, graphs and campaigns, and a one-click forensic PDF.
+6) Privacy & Legal Compliance → PII masking, evidence preservation, automatic retention sweep, attachments never executed, report-and-block instead of retaliation; DPDP-aligned and CERT-In-ready.
+
+All six components are built and working end to end.
+
+────────────────────────────────
+5. WHAT MAKES SECURITY-COPILOT DIFFERENT
+────────────────────────────────
+• It investigates, not just filters. An AI agent chooses its own tools and depth, like a human analyst — but in minutes.
+• It lives where the user is. Native Gmail labels and a sidebar card, plus a browser extension, protect people before the click, with no new app to learn.
+• A combined AI decision engine with zero false alerts in live Gmail testing. Jev leads the text verdict, VirusTotal-corroborated link scoring guards against both misses and false alarms, and a local BERT model keeps protection running offline.
+• Attribution, not guesswork. Every case is attributed to a spoofed domain, a compromised account, anonymised infrastructure or a direct actor, with the evidence behind it.
+• It remembers. SecureBERT case memory and DBSCAN clustering link today's email to yesterday's campaign automatically.
+• Explainable by design. Every point of risk carries a written reason an investigator — or a court — can read.
+• Evidence-grade and lawful. Headers preserved, PII masked, attachments never executed, threats reported rather than attacked.
+• Affordable at national scale. Open-source, CPU-only, self-hostable, with ₹0 in paid threat-intelligence APIs required.
+
+────────────────────────────────
+6. DEMO CASE — A SPOOFED PAYPAL EMAIL SENT THROUGH TOR
+────────────────────────────────
+An email titled "Urgent: your account has been limited" claims to come from PayPal, carries a lookalike link and an attachment named invoice.pdf.
+• Header analysis finds hop-0 at 185.220.101.34 and replies routed to a lookalike domain instead of paypal.com.
+• Authentication: DMARC fails for paypal.com (policy p=reject) and SPF hard-fails — the sender is not authorised to send for PayPal.
+• Origin: Brandenburg, Germany — flagged as a TOR exit node, so the origin is shown as anonymised.
+• Attachment: "invoice.pdf" is actually an executable (invoice.pdf.exe), detected from its real file type without opening it.
+• Verdict: phishing, risk score 100/100, attribution: spoofed domain, automatically linked to campaign C-9b6bad01 with related cases — delivered with a one-click forensic PDF.
+
+────────────────────────────────
+7. TECHNOLOGY STACK
+────────────────────────────────
+• AI / ML: LangGraph agent orchestration; LLM via OpenRouter; Jev (typesafe/jev-1.13) primary phishing classifier via OpenRouter Decisions API; BERT phishing text model (Hugging Face Transformers); ONNX Runtime URL model; SecureBERT embeddings; DBSCAN (scikit-learn).
+• Forensics & threat intel: Python email parser, checkdmarc, dkimpy, dnspython, MaxMind GeoLite2, Tor exit list, X4BNet VPN/datacenter ranges, AbuseIPDB, VirusTotal, WHOIS, oletools, pypdf, ClamAV, Playwright (headless Chromium sandbox), DuckDuckGo search.
+• Backend: Python, FastAPI with Server-Sent Events, SQLite, NetworkX, Microsoft Presidio.
+• Frontend & integrations: Next.js + React dashboard with Leaflet maps and interactive graphs, in-browser PDF generation, Chrome MV3 extension, Google Apps Script Gmail Add-on and auto-scanner.
+• Quality: 26 automated tests (pytest) running fully offline.
+
+────────────────────────────────
+8. FEASIBILITY & VIABILITY
+────────────────────────────────
+Built and running today:
+• 6 / 6 problem-statement components delivered.
+• 12 AI and forensic tools.
+• 26 automated tests passing.
+• 4 working entry points: Gmail Add-on, Chrome extension, analyst dashboard, CLI.
+• 0 false alerts in live Gmail testing.
+• ₹0 in paid threat-intelligence APIs required; runs on a standard CPU.
+
+How we handle the hard problems:
+• TOR / VPN hides the origin → flagged as anonymised infrastructure; the origin is shown as "probable", never overstated.
+• Flawless AI-written lures → Jev judges intent, not grammar; headers, authentication and links are judged independently of the text.
+• LLM error or outage → rule-based scoring continues and the system fails safe to "suspicious".
+• Weaponised attachments → sandboxed read of text, links and embedded scripts; files are never opened or run.
+• Sensitive personal data → PII masked, 90-day auto-delete.
+• API cost and rate limits → offline GeoIP, caching, and optional (not required) paid APIs.
+• DKIM key rotation / DNS changes → the receiving server's original verdict is preserved beside the live re-check.
+
+────────────────────────────────
+9. IMPACT & BENEFICIARIES
+────────────────────────────────
+• Law enforcement and cyber cells: origin, ISP and ASN for faster legal requests; court-ready PDF evidence; campaign-level view of organised fraud.
+• Banks and fraud units: stop BEC and payment fraud before money moves; faster fund-freeze decisions.
+• Institutions, colleges and SOC teams: alerts before the click; one platform instead of five manual tools.
+• Citizens and staff: plain-language verdicts right inside Gmail and the browser; one-click report & block.
+Economic: cuts BEC and payment-fraud losses. Social: builds digital trust for citizens and campuses. Governance: supports CERT-In 6-hour reporting and DPDP compliance. Scalable: open-source, CPU-only, self-hostable for any institution.
+
+────────────────────────────────
+10. PRIVACY, LEGAL & ETHICAL DESIGN
+────────────────────────────────
+• PII in stored email bodies is masked with Microsoft Presidio; headers are preserved unaltered as evidence.
+• Attachments are held only in memory, hashed and inspected — never written to disk, opened or executed.
+• Cases are deleted automatically after the retention period (90 days by default).
+• Confirmed malicious domains are reported (blocklist and VirusTotal) — the platform never "hacks back".
+• Aligned with the Digital Personal Data Protection Act 2023 and CERT-In Directions (28 April 2022) on 6-hour incident reporting.
+
+────────────────────────────────
+11. ROADMAP
+────────────────────────────────
+• Now: live platform — all 6 PS components plus the Gmail Add-on running end to end.
+• Next: mailbox ingestion for Outlook and IMAP, and a hosted, one-click Gmail rollout for organisations.
+• Pilots with colleges, cyber cells and banks.
+• Blockchain evidence ledger: every case's evidence hashes (already SHA-256 today) anchored in a hash-chained, blockchain-backed ledger, giving tamper-proof chain of custody that any court or agency can verify.
+• National scale: multi-tenant deployment and SIEM export for state and national SOCs.
+
+────────────────────────────────
+12. KEY REFERENCES
+────────────────────────────────
+• IETF RFC 7208 (SPF), RFC 6376 (DKIM), RFC 7489 (DMARC), RFC 5322 (Internet Message Format).
+• LangGraph; BERT phishing classifier (ealvaradob); ONNX phishing-URL model (pirocheto); SecureBERT (Aghaei et al., 2022); Jev via OpenRouter Decisions API.
+• MaxMind GeoLite2, Tor Project exit list, X4BNet VPN ranges, AbuseIPDB, VirusTotal.
+• checkdmarc, dkimpy, oletools, pypdf, ClamAV, Microsoft Presidio, DBSCAN (Ester et al., KDD 1996), NetworkX; Google Apps Script / Gmail Add-ons.
+• FBI IC3 Internet Crime Report 2025; MHA / I4C cyber-fraud data 2025; CERT-In Directions 2022; DPDP Act 2023.
+• Source code: github.com/code-YK/Security-Copilot-Sih26

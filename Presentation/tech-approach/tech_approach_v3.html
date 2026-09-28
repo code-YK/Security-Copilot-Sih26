@@ -1,0 +1,397 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Technical Approach v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=block" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1880px;height:834px;background:#fff;overflow:hidden}
+body{font-family:'IBM Plex Sans','Segoe UI',sans-serif;color:#1F2A44;position:relative;-webkit-font-smoothing:antialiased}
+.panel{position:absolute;border:2px solid;border-radius:20px}
+.panel>.ph{position:absolute;left:16px;top:12px;right:16px;display:flex;align-items:center;gap:11px;height:42px}
+.num{width:40px;height:40px;border-radius:50%;color:#fff;font-weight:700;font-size:22px;display:flex;align-items:center;justify-content:center;flex:none}
+.pt{font-size:26px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
+.psub{font-size:14.5px;color:#5A6378;font-style:italic;margin-left:auto;white-space:nowrap}
+.card{position:absolute;background:#fff;border:1.6px solid;border-radius:13px}
+.bub{border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+.ct{font-size:15px;font-weight:700;line-height:1.2}
+.cs{font-size:12.8px;color:#5A6378;line-height:1.25}
+.lbl{position:absolute;font-size:12.5px;font-style:italic;color:#5A6378;white-space:nowrap}
+/* P1 */
+.p1list{position:absolute;left:14px;right:14px;top:66px;bottom:14px;display:flex;flex-direction:column;gap:10px}
+.entry{flex:1;background:#fff;border:1.6px solid #BCD5F2;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4px 8px}
+.entry .et{font-size:17px;font-weight:700;margin-top:4px}
+.entry .es{font-size:13px;color:#5A6378;line-height:1.28;margin-top:2px}
+/* P2 */
+.trig{display:flex;align-items:center;gap:10px;padding:0 10px}
+.trig .ct{font-size:14.5px}
+.mcard{padding:9px 12px;display:flex;flex-direction:column;gap:7px}
+.jev{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,#D46F12,#E89A2C);border-radius:10px;padding:6px 10px;color:#fff;box-shadow:0 2px 6px rgba(212,111,18,.28)}
+.jbub{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;flex:none}
+.jt{font-size:17px;font-weight:700;line-height:1.15}
+.jt span{font-size:11.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:#fff;color:#C4610A;border-radius:8px;padding:1px 7px;margin-left:7px;vertical-align:2px}
+.js{font-size:12.5px;opacity:.96;line-height:1.25}
+.claim{position:absolute;right:16px;top:19px;display:flex;align-items:center;gap:7px;background:#2E8B62;color:#fff;border-radius:18px;padding:5px 13px 5px 10px;box-shadow:0 2px 6px rgba(46,139,98,.3)}
+.claim span{font-size:14.5px;font-weight:700}
+.claim em{font-size:12.5px;font-weight:500;opacity:.92}
+.mh{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.mh span{font-weight:500;text-transform:none;letter-spacing:0;color:#5A6378;font-style:italic;margin-left:6px}
+.mrow{display:flex;align-items:center;gap:10px}
+.mrow .ct{font-size:14.5px}
+.tl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.tlbox{background:#1F2A44;border-radius:30px;padding:7px 18px;display:flex;gap:44px}
+.tlbox i{display:block;width:34px;height:34px;border-radius:50%;box-shadow:0 0 10px rgba(255,255,255,.18)}
+.tll{display:flex;gap:18px;font-size:13.5px;font-weight:600}
+.tll span{width:78px;text-align:center}
+.out{display:flex;align-items:center;gap:8px;padding:0 10px;font-size:13.5px;font-weight:600}
+.out.strong{border-width:2px;background:#FFFBF1;font-weight:700}
+/* P3 */
+.rc{padding:9px 10px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.rch{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.rc .cs{font-size:12.5px}
+.fwrap{position:absolute;border:1.6px dashed #B6A9EE;border-radius:14px;background:rgba(255,255,255,.45)}
+.fwh{position:absolute;left:12px;right:12px;top:7px;display:flex;justify-content:space-between;font-size:12.5px;letter-spacing:.2px}
+.fwh span{color:#5A6378;font-style:italic}
+.fc{padding:9px 12px}
+.fch{display:flex;align-items:center;gap:9px;margin-bottom:5px}
+.fc ul{list-style:none;font-size:13.3px;line-height:1.45;color:#2A3550}
+.fc li{position:relative;padding-left:13px}
+.fc li:before{content:'';position:absolute;left:1px;top:8px;width:5px;height:5px;border-radius:50%;background:#5B4BC4}
+.fcf{position:absolute;left:25px;bottom:8px;font-size:12px;font-style:italic;color:#5B4BC4;font-weight:600}
+.agent{position:absolute;background:#5B4BC4;border-radius:14px;display:flex;align-items:center;gap:14px;padding:0 18px;color:#fff}
+.agi{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;flex:none}
+.agt{font-size:19px;font-weight:700;letter-spacing:.4px}
+.agt span{font-size:13px;font-weight:500;letter-spacing:0;opacity:.85;margin-left:6px}
+.ags{font-size:13px;line-height:1.35;opacity:.95;margin-top:2px}
+.tools{padding:12px 12px}
+.tbh{display:flex;align-items:baseline;justify-content:space-between;margin:0 2px 10px}
+.tbh .ct{font-size:16px}
+.tgrid{display:flex;flex-direction:column;gap:6px}
+.tool{background:#F0ECFC;border-radius:11px;padding:0 10px;display:flex;align-items:center;gap:11px;height:43px}
+.tool .ct{line-height:1.15}
+.tool .ct{font-size:14px}
+.tool .cs{font-size:12.8px}
+.tool.wide{}
+/* P4 */
+.ec{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px;padding:6px 8px}
+.ec .ct{font-size:14.5px;margin-top:2px}
+/* P5 */
+.vc{padding:11px 12px}
+.pills{display:flex;flex-wrap:wrap;gap:6px 5px;margin:9px 0 11px}
+.pill{font-size:12.2px;font-weight:700;border:1.4px solid;border-radius:12px;padding:1px 7px}
+.vcs{font-size:12.8px;color:#5A6378;line-height:1.32}
+.mk{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:12px;text-align:center}
+.mk .ct{margin-top:9px}
+svg.wires{position:absolute;left:0;top:0;width:1880px;height:834px;overflow:visible;z-index:5;pointer-events:none}
+.wl{position:absolute;z-index:6;font-size:12.5px;font-style:italic;color:#5A6378;white-space:nowrap;background:#fff;padding:0 5px;border-radius:4px}
+</style></head><body>
+<svg class="wires"><defs>
+<marker id="ah" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="4.4" markerHeight="4.4" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8391A7"/></marker>
+<marker id="ahs" viewBox="0 0 10 10" refX="1.4" refY="5" markerWidth="4.4" markerHeight="4.4" orient="auto"><path d="M10 0L0 5L10 10z" fill="#8391A7"/></marker>
+</defs></svg>
+<div class="panel" id="p1" style="left:0px;top:0px;width:300px;height:834px;background:#E8F1FC;border-color:#BCD5F2">
+  
+  <div class="ph"><div class="num" style="background:#1F5FB8">1</div>
+  <div class="pt">Entry points</div></div>
+  <div class="p1list">
+    
+  <div class="entry" id="e1"><svg width="150" height="86" viewBox="0 0 150 86">
+  <rect x="11" y="2" width="128" height="80" rx="9" fill="#fff" stroke="#3A4660" stroke-width="2.2"/>
+  <path d="M11 11a9 9 0 0 1 9-9h110a9 9 0 0 1 9 9v8H11z" fill="#E4EAF3"/>
+  <circle cx="21" cy="10.5" r="2.7" fill="#EF6A5A"/><circle cx="29.5" cy="10.5" r="2.7" fill="#F5BD4F"/><circle cx="38" cy="10.5" r="2.7" fill="#5BC467"/>
+  <rect x="48" y="6.5" width="82" height="8" rx="4" fill="#fff"/>
+  <g transform="translate(62 50)">
+    <circle r="21" fill="#DB4437"/>
+    <path d="M0 0 L18.19 -10.5 A21 21 0 0 1 0 21 Z" fill="#F4B400"/>
+    <path d="M0 0 L0 21 A21 21 0 0 1 -18.19 -10.5 Z" fill="#0F9D58"/>
+    <circle r="10" fill="#fff"/><circle r="7.6" fill="#4285F4"/>
+  </g>
+  <rect x="92" y="56" width="42" height="21" rx="6" fill="#1F5FB8"/>
+  <text x="113" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">MV3</text>
+</svg><div class="et">Chrome MV3 extension</div><div class="es">every page visit · auto-check of<br>each Gmail message opened</div></div>
+    
+  <div class="entry" id="e2"><svg width="150" height="86" viewBox="0 0 150 86">
+  <rect x="26" y="6" width="84" height="64" rx="9" fill="#fff" stroke="#C9D2DF" stroke-width="2"/>
+  <path d="M38 60 V22" stroke="#4285F4" stroke-width="9" stroke-linecap="round"/>
+  <path d="M98 60 V22" stroke="#34A853" stroke-width="9" stroke-linecap="round"/>
+  <path d="M38 22 L68 44 L98 22" stroke="#EA4335" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="98" cy="22" r="4.5" fill="#FBBC04"/>
+  <g transform="translate(90 44)">
+    <rect x="0" y="0" width="52" height="34" rx="9" fill="#2E8B62"/>
+    <path d="M26 6 L36 10 V17 C36 23 31.5 27 26 29 C20.5 27 16 23 16 17 V10 Z" fill="#fff"/>
+    <path d="M21.5 17.5 l3.3 3.3 l6 -6.3" stroke="#2E8B62" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg><div class="et">Gmail Add-on</div><div class="es">Apps Script auto-scanner labels<br>the inbox · sidebar report card</div></div>
+    
+  <div class="entry" id="e3"><svg width="150" height="86" viewBox="0 0 150 86">
+  <rect x="17" y="2" width="116" height="66" rx="7" fill="#26324A"/>
+  <rect x="22" y="7" width="106" height="56" rx="3" fill="#F4F7FB"/>
+  <rect x="22" y="7" width="22" height="56" rx="3" fill="#DCE5F2"/>
+  <rect x="26" y="13" width="14" height="3" rx="1.5" fill="#9FB0C8"/><rect x="26" y="20" width="14" height="3" rx="1.5" fill="#9FB0C8"/>
+  <rect x="26" y="27" width="14" height="3" rx="1.5" fill="#1F5FB8"/><rect x="26" y="34" width="14" height="3" rx="1.5" fill="#9FB0C8"/>
+  <rect x="50" y="13" width="34" height="6" rx="3" fill="#C0394B"/>
+  <rect x="50" y="24" width="72" height="3" rx="1.5" fill="#C3CCD9"/><rect x="50" y="31" width="58" height="3" rx="1.5" fill="#C3CCD9"/>
+  <g stroke="#7E95C8" stroke-width="1.4"><line x1="58" y1="50" x2="74" y2="42"/><line x1="74" y1="42" x2="90" y2="52"/><line x1="74" y1="42" x2="98" y2="40"/><line x1="98" y1="40" x2="114" y2="50"/></g>
+  <circle cx="58" cy="50" r="3.6" fill="#5B4BC4"/><circle cx="74" cy="42" r="4.2" fill="#C0394B"/><circle cx="90" cy="52" r="3.6" fill="#5B4BC4"/><circle cx="98" cy="40" r="3.6" fill="#2B6CB0"/><circle cx="114" cy="50" r="3.6" fill="#2E8B62"/>
+  <path d="M66 68h18l3 9H63z" fill="#3A4660"/><rect x="54" y="76" width="42" height="4.5" rx="2.2" fill="#3A4660"/>
+  <rect x="98" y="58" width="48" height="21" rx="6" fill="#111"/>
+  <text x="122" y="73" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">Next.js</text>
+</svg><div class="et">Analyst dashboard</div><div class="es">.eml upload · case pages ·<br>campaigns · PDF report</div></div>
+    
+  <div class="entry" id="e4"><svg width="150" height="86" viewBox="0 0 150 86">
+  <rect x="17" y="3" width="116" height="74" rx="9" fill="#1F2A44"/>
+  <circle cx="28" cy="13" r="2.7" fill="#EF6A5A"/><circle cx="36.5" cy="13" r="2.7" fill="#F5BD4F"/><circle cx="45" cy="13" r="2.7" fill="#5BC467"/>
+  <path d="M31 35 l11 9 l-11 9" stroke="#7EE2A8" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="48" y="51" width="20" height="4" rx="2" fill="#E8EDF5"/>
+  <rect x="88" y="56" width="56" height="21" rx="6" fill="#3776AB"/>
+  <circle cx="98" cy="66.5" r="4" fill="#FFD43B"/>
+  <text x="123" y="71.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">Python</text>
+</svg><div class="et">Python CLI</div><div class="es">URL &amp; raw-email checks<br>from the terminal</div></div>
+  </div></div><div class="panel" id="p2" style="left:336px;top:0px;width:542px;height:486px;background:#FFF5DE;border-color:#F1D594">
+  
+  <div class="ph"><div class="num" style="background:#D97F1E">2</div>
+  <div class="pt">Fast triage</div></div>
+  <div class="claim"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg><span>0 false alerts</span><em>in live Gmail tests</em></div>
+  
+  <div class="card trig" id="t1" style="left:16px;top:84px;width:206px;height:72px;border-color:#F1D594">
+    <div class="bub" style="width:34px;height:34px;background:#FDEBC4"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></div><div><div class="ct">Every page visit</div><div class="cs">Chrome extension</div></div></div>
+  
+  <div class="card trig" id="t2" style="left:16px;top:198px;width:206px;height:70px;border-color:#F1D594">
+    <div class="bub" style="width:34px;height:34px;background:#FDEBC4"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail-open" aria-hidden="true"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z"></path><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"></path></svg></div><div><div class="ct">Gmail email opened</div><div class="cs">auto · once per email</div></div></div>
+  
+  <div class="card trig" id="t3" style="left:16px;top:280px;width:206px;height:70px;border-color:#F1D594">
+    <div class="bub" style="width:34px;height:34px;background:#FDEBC4"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-inbox" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></div><div><div class="ct">New inbox mail</div><div class="cs">Apps Script · every min</div></div></div>
+  <div class="card mcard" id="m1" style="left:242px;top:64px;width:280px;height:112px;border-color:#F1D594">
+    <div class="mh" style="color:#D97F1E">Link check <span>URLs &amp; email links</span></div>
+    
+  <div class="mrow"><div class="bub" style="width:32px;height:32px;background:#FDEBC4"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-cpu" aria-hidden="true"><path d="M12 20v2"></path><path d="M12 2v2"></path><path d="M17 20v2"></path><path d="M17 2v2"></path><path d="M2 12h2"></path><path d="M2 17h2"></path><path d="M2 7h2"></path><path d="M20 12h2"></path><path d="M20 17h2"></path><path d="M20 7h2"></path><path d="M7 20v2"></path><path d="M7 2v2"></path><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg></div><div><div class="ct">ONNX URL model</div><div class="cs">local ML phishing score</div></div></div>
+    
+  <div class="mrow"><div class="bub" style="width:32px;height:32px;background:#FDEBC4"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></div><div><div class="ct">VirusTotal corroboration</div><div class="cs">cached · can overrule the model</div></div></div>
+  </div>
+  <div class="card mcard" id="m2" style="left:242px;top:212px;width:280px;height:130px;border-color:#D97F1E;border-width:2px">
+    <div class="mh" style="color:#D97F1E">Text verdict <span>email body</span></div>
+    <div class="jev"><div class="jbub"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"></path><path d="M20 2v4"></path><path d="M22 4h-4"></path><circle cx="4" cy="20" r="2"></circle></svg></div>
+      <div><div class="jt">Jev <span>primary classifier</span></div><div class="js">decides the text verdict</div></div></div>
+    
+  <div class="mrow"><div class="bub" style="width:32px;height:32px;background:#FDEBC4"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brain-circuit" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path><path d="M9 13a4.5 4.5 0 0 0 3-4"></path><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"></path><path d="M3.477 10.896a4 4 0 0 1 .585-.396"></path><path d="M6 18a4 4 0 0 1-1.967-.516"></path><path d="M12 13h4"></path><path d="M12 18h6a2 2 0 0 1 2 2v1"></path><path d="M12 8h8"></path><path d="M16 8V5a2 2 0 0 1 2-2"></path><circle cx="16" cy="13" r=".5"></circle><circle cx="18" cy="3" r=".5"></circle><circle cx="20" cy="21" r=".5"></circle><circle cx="20" cy="8" r=".5"></circle></svg></div><div><div class="ct">BERT phishing model</div><div class="cs">local backup if Jev is offline</div></div></div>
+  </div>
+  <div class="lbl" id="lb_ctx" style="left:296px;top:185px">link verdict → context for Jev</div>
+  <div class="card tl" id="tl" style="left:16px;top:372px;width:280px;height:96px;border-color:#F1D594">
+    <div class="tlbox"><i style="background:radial-gradient(circle at 35% 30%,#9BF0A8,#22A447 60%,#127A30)"></i><i style="background:radial-gradient(circle at 35% 30%,#FFE69A,#F2A600 60%,#C27F00)"></i><i style="background:radial-gradient(circle at 35% 30%,#FFA8A0,#E3342F 60%,#A81E1B)"></i></div>
+    <div class="tll"><span>Safe</span><span>Suspicious</span><span>Dangerous</span></div>
+  </div>
+  <div class="lbl" style="left:284px;top:347px">combined verdict</div>
+  <div class="card out" id="o1" style="left:318px;top:372px;width:204px;height:44px;border-color:#F1D594"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell-ring" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M22 8c0-2.3-.8-4.3-2-6"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path><path d="M4 2C2.8 3.7 2 5.7 2 8"></path></svg><span>Banner · Gmail label</span></div>
+  <div class="card out strong" id="o2" style="left:318px;top:424px;width:204px;height:44px;border-color:#D97F1E"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97F1E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-search" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle><path d="m16 16-1.9-1.9"></path></svg><span>Full scan on demand</span></div>
+</div><div class="panel" id="p3" style="left:914px;top:0px;width:966px;height:486px;background:#F0ECFC;border-color:#D3C9F5">
+  
+  <div class="ph"><div class="num" style="background:#5B4BC4">3</div>
+  <div class="pt">Full investigation</div><div class="psub">LangGraph agent · live progress over SSE</div></div>
+  
+  <div class="card rc" id="r1" style="left:16px;top:66px;width:132px;height:78px;border-color:#D3C9F5">
+    <div class="rch"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-server" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect><rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect><line x1="6" x2="6.01" y1="6" y2="6"></line><line x1="6" x2="6.01" y1="18" y2="18"></line></svg><div class="ct">FastAPI</div></div><div class="cs">SSE live progress</div></div>
+  
+  <div class="card rc" id="r2" style="left:162px;top:66px;width:132px;height:78px;border-color:#D3C9F5">
+    <div class="rch"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-workflow" aria-hidden="true"><rect width="8" height="8" x="3" y="3" rx="2"></rect><path d="M7 11v4a2 2 0 0 0 2 2h4"></path><rect width="8" height="8" x="13" y="13" rx="2"></rect></svg><div class="ct">LangGraph</div></div><div class="cs">stateful workflow</div></div>
+  
+  <div class="card rc" id="r3" style="left:308px;top:66px;width:132px;height:78px;border-color:#D3C9F5">
+    <div class="rch"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg><div class="ct">Link cache</div></div><div class="cs">blocklist · 24 h</div></div>
+  
+  <div class="card rc" id="r4" style="left:454px;top:66px;width:132px;height:78px;border-color:#D3C9F5">
+    <div class="rch"><svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-split" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M8 3H3v5"></path><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"></path><path d="m15 9 6-6"></path></svg><div class="ct">Raw email?</div></div><div class="cs">headers present?</div></div>
+  <div class="fwrap" id="fw" style="left:16px;top:164px;width:570px;height:190px">
+    <div class="fwh"><b style="color:#5B4BC4">YES → deterministic forensics</b><span>no headers → straight to the agent</span></div>
+    <div class="card fc" id="f1" style="left:10px;top:30px;width:270px;height:148px;border-color:#D3C9F5">
+      <div class="fch"><div class="bub" style="width:30px;height:30px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mail-search" aria-hidden="true"><path d="M22 12.5V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h7.5"></path><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path><path d="M18 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"></path><circle cx="18" cy="18" r="3"></circle><path d="m22 22-1.5-1.5"></path></svg></div><div class="ct">Header &amp; auth forensics</div></div>
+      <ul><li>Received hops → hop-0 origin</li><li>SPF · DKIM · DMARC + alignment</li><li>Sender-domain age · WHOIS</li><li>Origin IP · TOR / VPN / hosting</li></ul>
+    </div>
+    <div class="card fc" id="f2" style="left:290px;top:30px;width:270px;height:148px;border-color:#5B4BC4">
+      <div class="fch"><div class="bub" style="width:30px;height:30px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-lock" aria-hidden="true"><path d="M4 9.8V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2h-3"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M9 17v-2a2 2 0 0 0-4 0v2"></path><rect width="8" height="5" x="3" y="17" rx="1"></rect></svg></div><div class="ct">Attachment &amp; PDF sandbox</div></div>
+      <ul><li>Hash · real type · macros · ClamAV</li><li>PDF text → phishing classifier</li><li>PDF links → ML + VirusTotal</li><li>Embedded JS · auto-launch · files</li></ul>
+      <div class="fcf">never opened, rendered or executed</div>
+    </div>
+  </div>
+  <div class="agent" id="ag" style="left:16px;top:376px;width:570px;height:94px">
+    <div class="agi"><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot" aria-hidden="true"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg></div>
+    <div><div class="agt">LLM AGENT <span>via OpenRouter</span></div>
+    <div class="ags">Reasons over all evidence, picks the next tool, loops until confident.<br>Outage or limit → fails safe to “suspicious”, never “legitimate”.</div></div>
+  </div>
+  <div class="card tools" id="tb" style="left:606px;top:66px;width:340px;height:404px;border-color:#D3C9F5">
+    <div class="tbh"><span class="ct">Investigation tools</span><span class="cs">called by the agent</span></div>
+    <div class="tgrid">
+      
+  <div class="tool"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-search" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle><path d="m16 16-1.9-1.9"></path></svg></div><div><div class="ct">Sandboxed browser</div><div class="cs">headless Chromium</div></div></div>
+      
+  <div class="tool"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg></div><div><div class="ct">Brand search</div><div class="cs">DuckDuckGo</div></div></div>
+      
+  <div class="tool"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg></div><div><div class="ct">WHOIS + VirusTotal</div><div class="cs">domain reputation</div></div></div>
+      
+  <div class="tool"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brain-circuit" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path><path d="M9 13a4.5 4.5 0 0 0 3-4"></path><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"></path><path d="M3.477 10.896a4 4 0 0 1 .585-.396"></path><path d="M6 18a4 4 0 0 1-1.967-.516"></path><path d="M12 13h4"></path><path d="M12 18h6a2 2 0 0 1 2 2v1"></path><path d="M12 8h8"></path><path d="M16 8V5a2 2 0 0 1 2-2"></path><circle cx="16" cy="13" r=".5"></circle><circle cx="18" cy="3" r=".5"></circle><circle cx="20" cy="21" r=".5"></circle><circle cx="20" cy="8" r=".5"></circle></svg></div><div><div class="ct">ONNX + BERT</div><div class="cs">URL &amp; text models</div></div></div>
+      
+  <div class="tool"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"></path><circle cx="12" cy="10" r="3"></circle></svg></div><div><div class="ct">IP geolocation</div><div class="cs">GeoLite2 · TOR / VPN</div></div></div>
+      
+  <div class="tool"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-waypoints" aria-hidden="true"><path d="m10.586 5.414-5.172 5.172"></path><path d="m18.586 13.414-5.172 5.172"></path><path d="M6 12h12"></path><circle cx="12" cy="20" r="2"></circle><circle cx="12" cy="4" r="2"></circle><circle cx="20" cy="12" r="2"></circle><circle cx="4" cy="12" r="2"></circle></svg></div><div><div class="ct">Entity correlation</div><div class="cs">NetworkX graph</div></div></div>
+      
+  <div class="tool wide"><div class="bub" style="width:31px;height:31px;background:#E4DDFA"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5B4BC4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brain" aria-hidden="true"><path d="M12 18V5"></path><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"></path><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"></path><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"></path><path d="M18 18a4 4 0 0 0 2-7.464"></path><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"></path><path d="M6 18a4 4 0 0 1-2-7.464"></path><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"></path></svg></div><div><div class="ct">SecureBERT case recall</div><div class="cs">similar past investigations</div></div></div>
+    </div>
+  </div>
+</div><div class="panel" id="p4" style="left:336px;top:520px;width:742px;height:314px;background:#E7F6EE;border-color:#BDE5CF">
+  
+  <div class="ph"><div class="num" style="background:#2E8B62">4</div>
+  <div class="pt">Evidence, privacy &amp; case memory</div></div>
+  
+  <div class="card ec" id="c1a" style="left:16px;top:64px;width:184px;height:112px;border-color:#BDE5CF">
+    <div class="bub" style="width:44px;height:44px;background:#D3EFE0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2E8B62" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-database" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg></div><div class="ct">SQLite case history</div><div class="cs">raw headers kept as evidence</div></div>
+  
+  <div class="card ec" id="c1b" style="left:16px;top:186px;width:184px;height:112px;border-color:#BDE5CF">
+    <div class="bub" style="width:44px;height:44px;background:#D3EFE0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2E8B62" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-off" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"></path><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"></path><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"></path><path d="m2 2 20 20"></path></svg></div><div class="ct">PII masking</div><div class="cs">Microsoft Presidio</div></div>
+  
+  <div class="card ec" id="c2" style="left:226px;top:116px;width:164px;height:130px;border-color:#BDE5CF">
+    <div class="bub" style="width:44px;height:44px;background:#D3EFE0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2E8B62" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-brain-circuit" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"></path><path d="M9 13a4.5 4.5 0 0 0 3-4"></path><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"></path><path d="M3.477 10.896a4 4 0 0 1 .585-.396"></path><path d="M6 18a4 4 0 0 1-1.967-.516"></path><path d="M12 13h4"></path><path d="M12 18h6a2 2 0 0 1 2 2v1"></path><path d="M12 8h8"></path><path d="M16 8V5a2 2 0 0 1 2-2"></path><circle cx="16" cy="13" r=".5"></circle><circle cx="18" cy="3" r=".5"></circle><circle cx="20" cy="21" r=".5"></circle><circle cx="20" cy="8" r=".5"></circle></svg></div><div class="ct">SecureBERT embeddings</div><div class="cs">case memory</div></div>
+  
+  <div class="card ec" id="c3a" style="left:416px;top:64px;width:172px;height:112px;border-color:#BDE5CF">
+    <div class="bub" style="width:44px;height:44px;background:#D3EFE0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2E8B62" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-network" aria-hidden="true"><rect x="16" y="16" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="9" y="2" width="6" height="6" rx="1"></rect><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"></path><path d="M12 12V8"></path></svg></div><div class="ct">NetworkX entity graph</div><div class="cs">sender · domain · IP</div></div>
+  
+  <div class="card ec" id="c3b" style="left:416px;top:186px;width:172px;height:112px;border-color:#BDE5CF">
+    <div class="bub" style="width:44px;height:44px;background:#D3EFE0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2E8B62" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-boxes" aria-hidden="true"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"></path><path d="m7 16.5-4.74-2.85"></path><path d="m7 16.5 5-3"></path><path d="M7 16.5v5.17"></path><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"></path><path d="m17 16.5-5-3"></path><path d="m17 16.5 4.74-2.85"></path><path d="M17 16.5v5.17"></path><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"></path><path d="M12 8 7.26 5.15"></path><path d="m12 8 4.74-2.85"></path><path d="M12 13.5V8"></path></svg></div><div class="ct">DBSCAN campaigns</div><div class="cs">related frauds clustered</div></div>
+  
+  <div class="card ec" id="c4" style="left:614px;top:116px;width:110px;height:130px;border-color:#BDE5CF">
+    <div class="bub" style="width:44px;height:44px;background:#D3EFE0"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2E8B62" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-timer" aria-hidden="true"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></svg></div><div class="ct">90-day retention</div><div class="cs">auto-delete</div></div>
+</div><div class="panel" id="p5" style="left:1114px;top:520px;width:766px;height:314px;background:#E9F2FC;border-color:#BFD8F1">
+  
+  <div class="ph"><div class="num" style="background:#2B6CB0">5</div>
+  <div class="pt">Analyst-facing result</div></div>
+  <div class="card vc" id="vc" style="left:16px;top:62px;width:188px;height:234px;border-color:#BFD8F1">
+    <div class="fch"><div class="bub" style="width:30px;height:30px;background:#D7E7F8"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2B6CB0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-badge-check" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"></path><path d="m9 12 2 2 4-4"></path></svg></div><div class="ct">Explainable verdict</div></div>
+    <div class="pills">
+      <span class="pill" style="background:#E6F6EE;color:#2E8B62;border-color:#BDE5CF">legitimate</span><span class="pill" style="background:#FFF6DA;color:#9A7300;border-color:#F1DE9C">suspicious</span>
+      <span class="pill" style="background:#FDEEE4;color:#C8612A;border-color:#F4CDB3">impersonated</span><span class="pill" style="background:#C0394B;color:#fff;border-color:#C0394B">phishing</span>
+      <span class="pill" style="background:#EEEBFC;color:#5B4BC4;border-color:#CFC8F5">fraud-related</span>
+    </div>
+    <div class="vcs">0–100 risk score, a written reason for every point, and attribution</div>
+  </div>
+  
+  <div class="card mk" id="mk1" style="left:214px;top:62px;width:178px;height:234px;border-color:#BFD8F1">
+    <svg width="164" height="132" viewBox="0 0 164 132">
+  <rect width="164" height="132" rx="9" fill="#1B2436"/>
+  <path d="M9 0h23v132H9a9 9 0 0 1-9-9V9a9 9 0 0 1 9-9z" fill="#131A28"/>
+  <rect x="7" y="16" width="18" height="3.4" rx="1.7" fill="#3A4868"/><rect x="7" y="26" width="18" height="3.4" rx="1.7" fill="#3A4868"/><rect x="7" y="36" width="18" height="3.4" rx="1.7" fill="#6D8DF0"/><rect x="7" y="46" width="18" height="3.4" rx="1.7" fill="#3A4868"/><rect x="7" y="56" width="18" height="3.4" rx="1.7" fill="#3A4868"/>
+  <rect x="40" y="10" width="34" height="9" rx="4.5" fill="#C0394B"/>
+  <rect x="80" y="12" width="46" height="4" rx="2" fill="#44527A"/>
+  <rect x="40" y="26" width="64" height="58" rx="5" fill="#222D45"/>
+  <g stroke="#6D8DF0" stroke-width="1.3" opacity=".9"><line x1="50" y1="70" x2="62" y2="46"/><line x1="62" y1="46" x2="80" y2="58"/><line x1="62" y1="46" x2="86" y2="38"/><line x1="80" y1="58" x2="94" y2="72"/><line x1="50" y1="70" x2="80" y2="58"/></g>
+  <circle cx="50" cy="70" r="3.4" fill="#9DB4FF"/><circle cx="62" cy="46" r="4.4" fill="#E0697A"/><circle cx="80" cy="58" r="3.6" fill="#9DB4FF"/><circle cx="86" cy="38" r="3.4" fill="#7EE2A8"/><circle cx="94" cy="72" r="3.4" fill="#9DB4FF"/>
+  <rect x="110" y="26" width="46" height="58" rx="5" fill="#243251"/>
+  <path d="M113 40q12-8 20 2t20-2M113 62q14-6 22 2t18 0" stroke="#3B4D78" stroke-width="1.4" fill="none"/>
+  <path d="M133 44c-5.5 0-9 4-9 8.6 0 6 9 14.4 9 14.4s9-8.4 9-14.4c0-4.6-3.5-8.6-9-8.6z" fill="#E0697A"/><circle cx="133" cy="52.6" r="3.2" fill="#243251"/>
+  <rect x="40" y="94" width="116" height="26" rx="6" fill="#2B6CB0"/>
+  <text x="98" y="112" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">PDF report</text>
+</svg><div class="ct">Dashboard</div><div class="cs">case page · map · graph</div></div>
+  
+  <div class="card mk" id="mk2" style="left:402px;top:62px;width:184px;height:234px;border-color:#BFD8F1">
+    <svg width="170" height="132" viewBox="0 0 170 132">
+  <rect x="1" y="1" width="168" height="130" rx="9" fill="#fff" stroke="#C9D2DF" stroke-width="1.6"/>
+  <path d="M10 1h150a9 9 0 0 1 9 9v12H1V10a9 9 0 0 1 9-9z" fill="#F1F4F9"/>
+  <path d="M9 17V7l6 4.5L21 7v10" stroke="#EA4335" stroke-width="2.4" fill="none" stroke-linejoin="round"/>
+  <rect x="28" y="7" width="100" height="9" rx="4.5" fill="#fff"/>
+  <line x1="138" y1="22" x2="138" y2="131" stroke="#E1E6EE" stroke-width="1.4"/>
+  
+  <rect x="8" y="34" width="30" height="5" rx="2.5" fill="#5A6378"/>
+  <rect x="8" y="45" width="40" height="4" rx="2" fill="#C3CAD6"/>
+  <rect x="54" y="31" width="74" height="22" rx="11" fill="#D93025"/>
+  <text x="91" y="46.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Dangerous</text>
+  
+  <rect x="8" y="68" width="30" height="5" rx="2.5" fill="#5A6378"/>
+  <rect x="8" y="79" width="40" height="4" rx="2" fill="#C3CAD6"/>
+  <rect x="54" y="65" width="74" height="22" rx="11" fill="#F2A600"/>
+  <text x="91" y="80.5" text-anchor="middle" font-size="12" font-weight="700" fill="#3D2D00">Suspicious</text>
+  
+  <rect x="8" y="102" width="30" height="5" rx="2.5" fill="#5A6378"/>
+  <rect x="8" y="113" width="40" height="4" rx="2" fill="#C3CAD6"/>
+  <rect x="54" y="99" width="74" height="22" rx="11" fill="#188038"/>
+  <text x="91" y="114.5" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">Safe</text>
+  <rect x="143" y="30" width="20" height="20" rx="6" fill="#E6F6EE"/>
+  <path d="M153 34 L158.5 36.2 V40 C158.5 43.3 156 45.6 153 46.6 C150 45.6 147.5 43.3 147.5 40 V36.2 Z" fill="#2E8B62"/>
+  <rect x="143" y="58" width="20" height="4" rx="2" fill="#D5DBE5"/><rect x="143" y="67" width="20" height="4" rx="2" fill="#D5DBE5"/>
+  <rect x="142" y="80" width="22" height="12" rx="4" fill="#2B6CB0"/>
+</svg><div class="ct">Gmail</div><div class="cs">colored labels + sidebar card</div></div>
+  
+  <div class="card mk" id="mk3" style="left:596px;top:62px;width:150px;height:234px;border-color:#BFD8F1">
+    <svg width="150" height="132" viewBox="0 0 150 132">
+  <rect x="1" y="1" width="148" height="130" rx="9" fill="#fff" stroke="#C9D2DF" stroke-width="1.6"/>
+  <path d="M10 1h130a9 9 0 0 1 9 9v12H1V10a9 9 0 0 1 9-9z" fill="#F1F4F9"/>
+  <circle cx="11" cy="11.5" r="2.6" fill="#EF6A5A"/><circle cx="19" cy="11.5" r="2.6" fill="#F5BD4F"/><circle cx="27" cy="11.5" r="2.6" fill="#5BC467"/>
+  <rect x="36" y="7" width="104" height="9" rx="4.5" fill="#fff"/>
+  <rect x="10" y="30" width="130" height="92" rx="8" fill="#FCE8EA" stroke="#E7A3AC" stroke-width="1.4"/>
+  <path d="M75 38 L87 60 H63 Z" fill="#C0394B" stroke="#C0394B" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="73.8" y="45" width="2.6" height="8" rx="1.3" fill="#fff"/><circle cx="75.1" cy="56.5" r="1.6" fill="#fff"/>
+  <text x="75" y="80" text-anchor="middle" font-size="13" font-weight="700" fill="#A02C3C">Dangerous site</text>
+  <rect x="26" y="90" width="98" height="22" rx="6" fill="#C0394B"/>
+  <text x="75" y="105.5" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">Report &amp; block</text>
+</svg><div class="ct">Extension</div><div class="cs">warn · report · block</div></div>
+</div>
+<script>
+const NS='http://www.w3.org/2000/svg';
+function R(id){const r=document.getElementById(id).getBoundingClientRect();return{l:r.left,t:r.top,r:r.right,b:r.bottom,cx:(r.left+r.right)/2,cy:(r.top+r.bottom)/2};}
+function draw(){
+  const svg=document.querySelector('svg.wires');
+  const C='#8391A7';
+  const line=(pts,o={})=>{const p=document.createElementNS(NS,'path');
+    p.setAttribute('d',pts.map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' '));
+    p.setAttribute('fill','none');p.setAttribute('stroke',o.c||C);p.setAttribute('stroke-width',o.w||2.2);
+    p.setAttribute('stroke-linejoin','round');p.setAttribute('stroke-linecap','round');
+    if(o.dash)p.setAttribute('stroke-dasharray',o.dash);
+    if(!o.noHead)p.setAttribute('marker-end','url(#ah)');
+    if(o.start)p.setAttribute('marker-start','url(#ahs)');
+    svg.appendChild(p);};
+  const dot=(x,y)=>{const c=document.createElementNS(NS,'circle');c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',3.6);c.setAttribute('fill',C);svg.appendChild(c);};
+  const lab=(x,y,t,al)=>{const d=document.createElement('div');d.className='wl';d.textContent=t;document.body.appendChild(d);
+    const w=d.offsetWidth,h=d.offsetHeight;d.style.left=(al==='l'?x:al==='r'?x-w:x-w/2)+'px';d.style.top=(y-h/2)+'px';};
+  const p1=R('p1'),p2=R('p2'),p3=R('p3'),p4=R('p4'),p5=R('p5');
+  const e=['e1','e2','e3','e4'].map(R), t=['t1','t2','t3'].map(R);
+  const bx=(p1.r+p2.l)/2, gy=(p2.b+p4.t)/2, gx=(p2.r+p3.l)/2;
+  // entry points -> bus -> triage triggers / full scan
+  e.forEach(q=>{line([[q.r,q.cy],[bx,q.cy]],{noHead:true});});
+  line([[bx,t[0].cy],[bx,e[3].cy]],{noHead:true});
+  e.forEach(q=>dot(bx,q.cy));
+  t.forEach(q=>line([[bx,q.cy],[q.l,q.cy]]));
+  const r1=R('r1');
+  line([[bx,gy],[gx,gy],[gx,r1.cy],[r1.l,r1.cy]]);
+  dot(bx,gy);
+  lab((bx+gx)/2+10,gy,'full scans: dashboard · CLI · extension · Gmail “Check Report”');
+  // P2 internals
+  const m1=R('m1'),m2=R('m2'),tl=R('tl'),o1=R('o1'),o2=R('o2');
+  line([[t[0].r,t[0].cy],[m1.l,t[0].cy]]);
+  const mx=(t[1].r+m2.l)/2;
+  line([[t[1].r,t[1].cy],[mx,t[1].cy],[mx,t[2].cy],[t[2].r,t[2].cy]],{noHead:true});
+  line([[mx,m2.cy],[m2.l,m2.cy]]);
+  line([[m1.l+40,m1.b],[m1.l+40,m2.t]]);
+  line([[m2.l+30,m2.b],[m2.l+30,tl.t]]);
+  const ox=(tl.r+o1.l)/2;
+  line([[tl.r,tl.cy],[ox,tl.cy]],{noHead:true});
+  line([[ox,o1.cy],[ox,o2.cy]],{noHead:true});
+  line([[ox,o1.cy],[o1.l,o1.cy]]);line([[ox,o2.cy],[o2.l,o2.cy]]);
+  line([[o2.r,o2.cy],[gx,o2.cy]],{noHead:true});
+  dot(gx,o2.cy);
+  // P3 internals
+  const r=['r1','r2','r3','r4'].map(R), fw=R('fw'), ag=R('ag'), tb=R('tb');
+  for(let i=0;i<3;i++) line([[r[i].r,r[i].cy],[r[i+1].l,r[i].cy]]);
+  line([[r[3].cx,r[3].b],[r[3].cx,fw.t]]);
+  line([[ag.cx-120,fw.b],[ag.cx-120,ag.t]]);
+  line([[ag.r,ag.cy-16],[tb.l,ag.cy-16]]);
+  line([[tb.l,ag.cy+16],[ag.r,ag.cy+16]]);
+  // across panels
+  const x34=p3.l+86;
+  line([[x34,p3.b],[x34,p4.t]]);
+  lab(x34+8,(p3.b+p4.t)/2,'every run saved','l');
+  const x35=p5.l+470;
+  line([[x35,p3.b],[x35,p5.t]]);
+  lab(x35+8,(p3.b+p5.t)/2,'verdict + evidence','l');
+  line([[p4.r,p4.cy],[p5.l,p4.cy]]);
+  // P4 internals
+  const c=Object.fromEntries(['c1a','c1b','c2','c3a','c3b','c4'].map(k=>[k,R(k)]));
+  const conv=(a,b,to)=>{const x=(a.r+to.l)/2;line([[a.r,a.cy],[x,a.cy],[x,b.cy],[b.r,b.cy]],{noHead:true});line([[x,to.cy],[to.l,to.cy]]);};
+  const div=(from,a,b)=>{const x=(from.r+a.l)/2;line([[from.r,from.cy],[x,from.cy]],{noHead:true});line([[x,a.cy],[x,b.cy]],{noHead:true});line([[x,a.cy],[a.l,a.cy]]);line([[x,b.cy],[b.l,b.cy]]);};
+  conv(c.c1a,c.c1b,c.c2); div(c.c2,c.c3a,c.c3b); conv(c.c3a,c.c3b,c.c4);
+  document.body.setAttribute('data-ready','1');
+}
+document.fonts.ready.then(()=>requestAnimationFrame(draw));
+</script></body></html>

@@ -28,12 +28,17 @@ backend/data/screenshots/
 backend/data/reports/
 backend/data/intel/*.mmdb
 backend/data/intel/tor_exit_nodes.txt
+# Same runtime state, created at the repo root when the backend is started from there
+/data/
 
-# Editor / OS
+# Editor / OS / local tooling
 .vscode/
 .idea/
+.claude/
 .DS_Store
 *.swp
+# Office lock files (an open .pptx/.docx in Presentation/)
+~$*
 
 # Logs
 *.log

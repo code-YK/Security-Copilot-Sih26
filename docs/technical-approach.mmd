@@ -1,0 +1,79 @@
+%% Security Copilot — technical approach as implemented in this repository.
+%% Render with Mermaid Live Editor, GitHub Markdown, or a Mermaid-compatible viewer.
+flowchart TB
+    subgraph CLIENTS["1 · Entry points"]
+        EXT["Chrome MV3 extension<br/>automatic page scan · webmail popup<br/>full-scan escalation · report/block"]
+        WEB["Next.js analyst dashboard<br/>URL and email scans · case history<br/>forensic views · PDF export"]
+        CLI["Python CLI<br/>URL and raw email checks"]
+    end
+
+    subgraph FAST["2 · Fast triage · no LLM investigation"]
+        URL_IN["Every page navigation"] --> URL_FAST["POST /quick-check-url<br/>URL model (ONNX) + cached VirusTotal<br/>blocklist/cache + cross-domain password-form signal"]
+        MAIL_IN["Recognized webmail message opened"] --> MAIL_FAST["POST /quick-check-email<br/>BERT phishing score on visible email text"]
+        URL_FAST --> FAST_RESULT["Immediate safe / suspicious / dangerous signal"]
+        MAIL_FAST --> FAST_RESULT
+    end
+
+    subgraph FULL["3 · Full investigation · API routes"]
+        SUBMIT["User requests a full scan<br/>URL, email text, or raw .eml"] --> API["FastAPI<br/>JSON endpoints + SSE progress endpoints"]
+        API --> EMAIL_LINKS["For email: extract body links + real HTML hrefs<br/>deduplicate by domain · cap at 5"]
+        API --> GRAPH["LangGraph case workflow"]
+        EMAIL_LINKS --> GRAPH
+        GRAPH --> ROUTER{"Link blocklist /<br/>24-hour verdict cache hit?"}
+        ROUTER -->|"yes"| OUTPUT
+        ROUTER -->|"no, or email case"| RAW_CHECK{"Raw RFC822 email<br/>with headers?"}
+        RAW_CHECK -->|"yes"| FORENSICS
+        RAW_CHECK -->|"no"| AGENT
+        FORENSICS["Deterministic email forensics<br/>Received chain + sender mismatches<br/>SPF / DKIM / DMARC<br/>conditional sender-domain reputation<br/>conditional origin-IP geolocation<br/>static attachment inspection"] --> AGENT
+        AGENT["LLM investigation agent<br/>OpenRouter · selects tools based on evidence<br/>for each email link, inspect as a URL"] <--> TOOLS["Investigation tools<br/>sandboxed Chromium page inspection<br/>WHOIS / VirusTotal reputation<br/>ONNX URL + BERT text classifier<br/>brand search · SecureBERT case recall<br/>IP geolocation · entity correlation"]
+        AGENT --> OUTPUT["Output and deterministic rules<br/>parse verdict · normalize 5 labels<br/>apply forensic risk factors + attribution<br/>cache URL verdicts"]
+        SAFE_FAIL["If provider fails or graph reaches its limit<br/>return low-confidence suspicious / unresolved"]
+    end
+
+    subgraph EVIDENCE["4 · Evidence, privacy, and case memory"]
+        REPORTS["Investigation artifacts<br/>tool results · screenshots · markdown report"]
+        HISTORY[("SQLite case history")]
+        MASK["Mask email-body PII before storage"]
+        EMBED["SecureBERT case embeddings<br/>similar-case recall"]
+        CORR["NetworkX entity graph<br/>sender · domain · IP seen together"]
+        CAMPAIGNS["DBSCAN campaign clusters<br/>over malicious-case embeddings"]
+        RETAIN["Retention sweep<br/>default 90 days"]
+    end
+
+    subgraph REVIEW["5 · Analyst-facing result"]
+        VERDICT["Explainable case verdict<br/>legitimate · suspicious · impersonated<br/>phishing · fraud-related<br/>risk score · factors · attribution"]
+        VIEWS["Dashboard case view<br/>Received trace + origin map<br/>case graph / campaigns · PDF report"]
+        EXT_ACTION["Extension warning / block action<br/>reported domains enter local blocklist<br/>optional VirusTotal submission"]
+    end
+
+    FAST_RESULT -.->|"Run full scan when needed"| SUBMIT
+    OUTPUT --> REPORTS
+    OUTPUT --> MASK
+    OUTPUT --> VERDICT
+    REPORTS --> HISTORY
+    MASK --> HISTORY
+    MASK --> EMBED
+    HISTORY --> CORR
+    EMBED --> CAMPAIGNS
+    HISTORY --> RETAIN
+    RETAIN -->|"expire run and remove case embedding"| EMBED
+    GRAPH -.-> SAFE_FAIL
+    VERDICT --> VIEWS
+    HISTORY --> VIEWS
+    CORR --> VIEWS
+    CAMPAIGNS --> VIEWS
+    VERDICT --> EXT_ACTION
+    VIEWS --> WEB
+    EXT_ACTION --> EXT
+    CLI --> API
+
+    classDef client fill:#eaf3ff,stroke:#3174b5,color:#14263d
+    classDef fast fill:#fff5d8,stroke:#c38a00,color:#3d2d00
+    classDef process fill:#f0edff,stroke:#6954b8,color:#241b4d
+    classDef evidence fill:#f3f5f8,stroke:#738096,color:#263140
+    classDef result fill:#e8f6ed,stroke:#33865a,color:#153c27
+    class EXT,WEB,CLI client
+    class URL_IN,MAIL_IN,URL_FAST,MAIL_FAST,FAST_RESULT fast
+    class SUBMIT,API,EMAIL_LINKS,GRAPH,ROUTER,RAW_CHECK,FORENSICS,AGENT,TOOLS,OUTPUT,SAFE_FAIL process
+    class REPORTS,HISTORY,MASK,EMBED,CORR,CAMPAIGNS,RETAIN evidence
+    class VERDICT,VIEWS,EXT_ACTION result
