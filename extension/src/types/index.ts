@@ -62,20 +62,22 @@ export interface QuickCheckResponse {
  * on a recognized webmail tab (see lib/webmail.ts); "Run full scan"
  * escalates to the real agent via RUN_FULL_EMAIL_CHECK below, which does
  * investigate every link. */
+// One entry of breakdown.links — exactly what backend/tools/link_reputation.py's
+// evaluate_url() returns (no url, no WHOIS), or routes_quick_check_email.py's
+// timeout fallback, which is label "unknown" / source "error" with no domain.
 export interface QuickCheckEmailLinkResult {
-  url: string;
-  domain: string;
-  ml_score: number;
-  whois: { available: boolean; age_days?: number | null; detail?: string };
-  combined_score: number;
-  label: "dangerous" | "suspicious" | "safe";
+  label: "dangerous" | "suspicious" | "safe" | "unknown";
+  confidence: number;
+  source: string; // "ml_model" | "virustotal" | "error"
+  domain?: string;
+  detail?: string;
 }
 
 export interface QuickCheckEmailResponse {
   label: "dangerous" | "suspicious" | "safe" | "unknown";
   confidence: number;
   // A "+"-joined list of which signals actually contributed, e.g.
-  // "ml_model+jev+whois" or just "ml_model" if Jev/WHOIS timed out —
+  // "ml_model+jev+virustotal" or just "ml_model" if Jev timed out —
   // never a fixed union, since any subset can be present.
   source: string;
   detail?: string;

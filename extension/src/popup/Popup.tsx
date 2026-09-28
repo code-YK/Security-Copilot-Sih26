@@ -3,17 +3,19 @@ import {
   Ban,
   ExternalLink,
   FileText,
+  Globe,
   Link2,
   Loader2,
+  Radar,
   RotateCcw,
   Settings,
   ShieldAlert,
   ShieldCheck,
-  ShieldHalf,
   ShieldQuestion,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { api, ApiError } from "@/lib/api";
 import { extractPageContent, MAX_PAGE_TEXT_CHARS } from "@/lib/pageContent";
@@ -55,22 +57,67 @@ function hostnameOf(url: string): string {
   }
 }
 
+// Verdict → icon + verdict-colour class (see styles/aegis.css's `.v-*`).
 // Widened to TabVerdict["label"] | QuickCheckEmailResponse["label"] — the
-// same rendering (a generic "unknown" look via the switch's default case)
+// same rendering (a generic "info" look via the switch's default case)
 // already covers "inconclusive" and "unknown" identically, so this is
 // just making the signature honest about the two label sets that
 // actually get passed to it, not a behavior change.
 function labelMeta(label: TabVerdict["label"] | QuickCheckEmailResponse["label"]) {
   switch (label) {
     case "dangerous":
-      return { Icon: ShieldAlert, color: "text-threat-critical", bg: "bg-threat-critical/10", border: "border-threat-critical/30", glow: "shadow-glow-critical" };
+      return { Icon: ShieldAlert, vclass: "v-critical" };
     case "suspicious":
-      return { Icon: AlertTriangle, color: "text-threat-medium", bg: "bg-threat-medium/10", border: "border-threat-medium/30", glow: "shadow-glow-medium" };
+      return { Icon: AlertTriangle, vclass: "v-medium" };
     case "safe":
-      return { Icon: ShieldCheck, color: "text-safe", bg: "bg-safe/10", border: "border-safe/30", glow: "shadow-glow-safe" };
+      return { Icon: ShieldCheck, vclass: "v-safe" };
     default:
-      return { Icon: ShieldQuestion, color: "text-fog-dim", bg: "bg-panel-raised", border: "border-panel-line", glow: "" };
+      return { Icon: ShieldQuestion, vclass: "v-info" };
   }
+}
+
+// The gauge always reads as *risk* — 0 = safe, 100 = dangerous — coloured
+// by the verdict. The trick is that `confidence` means two different things
+// depending on how the verdict was produced (see storage.ts's TabVerdict):
+//   • quick scans store the local model's *threat probability* (low = safe),
+//     so it maps straight to risk — a safe quick scan is a low number, not
+//     the misleading 100−conf a naive inversion produced (a 4% threat score
+//     used to render as "96", contradicting the green "Safe" label).
+//   • the full agent stores its *confidence in the verdict* (high = sure),
+//     so a confident "safe" is inverted into low risk and a confident
+//     "phishing" maps straight through.
+// `sub` is the honest sub-label: literal confidence for a full verdict, a
+// plain "Local quick scan" for the model-only one (whose number isn't a
+// confidence and shouldn't be shown as one).
+function riskInfo(v: Pick<TabVerdict, "kind" | "label" | "confidence">): { risk: number; sub: string } {
+  const c = Math.round(v.confidence * 100);
+  if (v.kind === "quick") {
+    return { risk: v.label === "safe" ? Math.min(c, 12) : c, sub: "Local quick scan" };
+  }
+  return { risk: v.label === "safe" ? Math.max(2, 100 - c) : c, sub: `${c}% confidence` };
+}
+
+// Eases a number from 0 → target once on mount, for the gauge count-up.
+// Respects reduced-motion by jumping straight to the target.
+function useCountUp(target: number, ms = 750): number {
+  const [n, setN] = useState(target);
+  const raf = useRef(0);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setN(target);
+      return;
+    }
+    const start = performance.now();
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / ms);
+      setN(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf.current = requestAnimationFrame(tick);
+    };
+    setN(0);
+    raf.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf.current);
+  }, [target, ms]);
+  return n;
 }
 
 export function Popup() {
@@ -121,7 +168,12 @@ export function Popup() {
         // reporting if this popup was actually shown as waiting on it.
         setView((prev) =>
           prev.status === "checking"
-            ? { status: "error", tab: prev.tab, message: "Full check failed. Try again." }
+            ? {
+                status: "error",
+                tab: prev.tab,
+                message:
+                  "The full investigation couldn't complete. Make sure the backend is running and its agent is configured (an LLM API key is required for full scans — the quick scan works without one).",
+              }
             : prev,
         );
         return;
@@ -293,264 +345,310 @@ export function Popup() {
     }
   }
 
+  const isWebmail = emailQuickCheckEligible;
+
   return (
-    <div className="flex flex-col">
+    <div className="popup">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <header className="flex items-center gap-2.5 gradient-border-b px-5 py-3.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-sentinel/15">
-          <ShieldHalf className="h-4.5 w-4.5 text-sentinel" />
+      <header className="hdr">
+        <BrandMark active={view.status === "checking" || quickEmailCheck?.status === "checking"} />
+        <div className="wordmark">
+          <b>Security Copilot</b>
+          <span className="sub">Email forensic intelligence</span>
         </div>
-        <span className="font-display text-sm font-bold tracking-wide">security-copilot</span>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="hdr-actions">
           <ThemeToggle />
-          <button
-            className="rounded-md p-1.5 text-fog-faint transition-colors duration-200 hover:bg-panel-raised hover:text-fog"
-            title="Settings"
-            onClick={() => chrome.runtime.openOptionsPage()}
-          >
-            <Settings className="h-4 w-4" />
+          <button className="ico-btn" title="Settings" aria-label="Settings" onClick={() => chrome.runtime.openOptionsPage()}>
+            <Settings />
           </button>
         </div>
       </header>
 
       {/* ── Body ────────────────────────────────────────────────── */}
-      <div className="p-5">
-        <>
-            {view.status === "loading" && <p className="py-10 text-center text-sm text-fog-dim">Loading...</p>}
+      <div className="body">
+        {view.status === "loading" && <p className="centered">Loading…</p>}
 
-            {view.status === "unsupported" && (
-              <p className="py-10 text-center text-sm text-fog-dim">Open a regular http(s) page to run a check.</p>
+        {view.status === "unsupported" && <p className="centered">Open a regular http(s) page to run a check.</p>}
+
+        {tab && (
+          <>
+            {/* Current page */}
+            <div className="host" title={tab.url}>
+              <Globe className="globe" />
+              <span className="name">{tab.hostname}</span>
+              {isWebmail && <span className="tag">Webmail</span>}
+            </div>
+
+            {/* Primary actions */}
+            <div className={isWebmail ? "actions" : "actions two"}>
+              <button className="btn" disabled={view.status === "checking"} onClick={() => handleCheckUrl(tab)}>
+                {view.status === "checking" && view.kind === "link" ? (
+                  <Loader2 className="ae-spin" />
+                ) : (
+                  <span className="lead">
+                    <Link2 />
+                  </span>
+                )}
+                Check this URL
+              </button>
+              {/* Hidden on a webmail tab once the quick-check panel below is */}
+              {/* showing — its "Check this email" button does the exact same */}
+              {/* thing (extract text + links, run the full investigation). */}
+              {!isWebmail && (
+                <button className="btn" disabled={view.status === "checking"} onClick={() => handleCheckText(tab)}>
+                  {view.status === "checking" && view.kind === "email" ? (
+                    <Loader2 className="ae-spin" />
+                  ) : (
+                    <span className="lead">
+                      <FileText />
+                    </span>
+                  )}
+                  Check page text
+                </button>
+              )}
+            </div>
+
+            {/* Scanning */}
+            {view.status === "checking" && (
+              <div className="scan">
+                <div className="radar">
+                  <div className="scope">
+                    <div className="sweep" />
+                    <span className="blip b1" />
+                    <span className="blip b2" />
+                    <span className="core" />
+                  </div>
+                </div>
+                <div className="scanbar">
+                  <span />
+                </div>
+                <div className="step">
+                  <span className="dot" />
+                  {/* keyed so each new step label re-triggers its entrance animation */}
+                  <span className="label" key={view.step ?? "start"}>
+                    {view.step ?? "Starting investigation…"}
+                  </span>
+                </div>
+              </div>
             )}
 
-            {tab && (
+            {/* Automatic webmail quick-check */}
+            {isWebmail && (
               <>
-                <p className="mb-4 truncate rounded-md bg-panel-raised/50 px-3 py-1.5 font-mono text-xs text-fog-faint" title={tab.url}>
-                  {tab.hostname}
-                </p>
-
-                <div className={emailQuickCheckEligible ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
-                  <button
-                    disabled={view.status === "checking"}
-                    onClick={() => handleCheckUrl(tab)}
-                    className="flex items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2.5 text-xs font-medium text-fog transition-all duration-200 hover:border-sentinel/30 hover:bg-panel-raised hover:shadow-glow-sentinel disabled:opacity-40"
-                  >
-                    {view.status === "checking" && view.kind === "link" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Link2 className="h-3.5 w-3.5 text-sentinel" />
-                    )}
-                    Check this URL
-                  </button>
-                  {/* Hidden on a webmail tab once the quick-check panel below is */}
-                  {/* showing — its "Check this email" button does the exact same */}
-                  {/* thing (extract text + links, run the full investigation), */}
-                  {/* just correctly framed as checking the email rather than the */}
-                  {/* generic page. Having both was confusing: two differently- */}
-                  {/* labeled buttons that trigger the identical flow. */}
-                  {!emailQuickCheckEligible && (
-                    <button
-                      disabled={view.status === "checking"}
-                      onClick={() => handleCheckText(tab)}
-                      className="flex items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2.5 text-xs font-medium text-fog transition-all duration-200 hover:border-accent/30 hover:bg-panel-raised hover:shadow-glow-accent disabled:opacity-40"
-                    >
-                      {view.status === "checking" && view.kind === "email" ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <FileText className="h-3.5 w-3.5 text-accent" />
-                      )}
-                      Check page text
-                    </button>
-                  )}
-                </div>
-
-                {view.status === "checking" && (
-                  <div className="mt-4 rounded-lg scan-bg animate-scan px-4 py-2.5 text-center">
-                    <p className="flex items-center justify-center gap-2 font-mono text-xs text-fog-dim">
-                      <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                      {view.step ?? "Starting investigation..."}
-                    </p>
+                {quickEmailCheck?.status === "checking" && (
+                  <div className="qmail">
+                    <div className="row" style={{ color: "var(--text)" }}>
+                      <Loader2 className="ae-spin" />
+                      <b>Scanning this email…</b>
+                    </div>
                   </div>
                 )}
-
-                {/* Automatic webmail quick-check — a recognized webmail tab with */}
-                {/* nothing more specific than the passive URL scan shown yet */}
-                {emailQuickCheckEligible && (
-                  <div className="mt-4">
-                    {quickEmailCheck?.status === "checking" && (
-                      <div className="flex items-center gap-2 rounded-lg border border-panel-line bg-panel-raised/50 px-3 py-2.5 text-xs text-fog-dim">
-                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                        Scanning this email...
-                      </div>
-                    )}
-                    {quickEmailCheck?.status === "done" &&
-                      (() => {
-                        const { Icon, color, bg, border } = labelMeta(quickEmailCheck.result.label);
-                        const { result, text, links } = quickEmailCheck;
-                        // How many independent signals actually weighed in —
-                        // Jev/WHOIS may have timed out and dropped silently,
-                        // so this reflects what really ran, not what was asked for.
-                        const signalCount = result.source.split("+").length;
-                        const dangerousLinks =
-                          result.breakdown?.links.filter((l) => l.label !== "safe") ?? [];
-                        return (
-                          <div className={`rounded-lg border ${border} ${bg} p-3`}>
-                            <div className="flex items-center gap-2">
-                              <Icon className={`h-4 w-4 shrink-0 ${color}`} />
-                              <p className={`text-xs font-semibold capitalize ${color}`}>
-                                {result.label === "unknown" ? "Quick scan unavailable" : `Quick scan: ${result.label}`}
-                              </p>
-                            </div>
-                            {result.label !== "unknown" && (
-                              <p className="mt-1 text-[11px] text-fog-dim">
-                                Cross-checked with {signalCount} signal{signalCount === 1 ? "" : "s"}
-                                {result.source.includes("jev") ? " (text model + Jev)" : " (text model only)"}
-                                {result.breakdown && result.breakdown.links.length > 0
-                                  ? ` · ${result.breakdown.links.length} link${
-                                      result.breakdown.links.length === 1 ? "" : "s"
-                                    } checked`
-                                  : ""}
-                              </p>
-                            )}
-                            {dangerousLinks.length > 0 && (
-                              <ul className="mt-2 space-y-1">
-                                {dangerousLinks.map((l) => (
-                                  <li
-                                    key={l.url}
-                                    className="truncate rounded border border-threat-critical/20 bg-threat-critical/5 px-2 py-1 text-[11px] text-threat-critical"
-                                    title={l.url}
-                                  >
-                                    {l.label === "dangerous" ? "⚠" : "?"} {l.domain}
-                                    {l.whois.available && l.whois.age_days != null && l.whois.age_days < 30
-                                      ? ` — registered ${l.whois.age_days}d ago`
-                                      : ""}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            <button
-                              onClick={() => runFullEmailScan(tab, text, links)}
-                              className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2 text-xs font-medium text-fog transition-all duration-200 hover:border-accent/30 hover:bg-panel-raised hover:shadow-glow-accent"
-                            >
-                              <FileText className="h-3.5 w-3.5 text-accent" />
-                              Check this email
-                            </button>
-                          </div>
-                        );
-                      })()}
-                  </div>
-                )}
-
-                {view.status === "error" && (
-                  <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-threat-critical/30 bg-threat-critical/10 p-3 shadow-glow-critical">
-                    <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-threat-critical" />
-                    <p className="text-xs leading-relaxed text-threat-critical">{view.message}</p>
-                  </div>
-                )}
-
-                {view.status === "result" &&
+                {quickEmailCheck?.status === "done" &&
                   (() => {
-                    const { Icon, color, bg, border, glow } = labelMeta(view.verdict.label);
+                    const { Icon, vclass } = labelMeta(quickEmailCheck.result.label);
+                    const { result, text, links } = quickEmailCheck;
+                    const isUnknown = result.label === "unknown";
+                    // How many independent signals actually weighed in —
+                    // Jev/WHOIS may have timed out and dropped silently,
+                    // so this reflects what really ran, not what was asked for.
+                    const signalCount = result.source.split("+").length;
+                    const linksChecked = result.breakdown?.links.length ?? 0;
+                    const dangerousLinks =
+                      result.breakdown?.links.filter((l) => l.label === "dangerous" || l.label === "suspicious") ?? [];
                     return (
-                      <div className="mt-4 space-y-3">
-                        {/* Verdict banner */}
-                        <div className={`glass flex items-start gap-3 rounded-lg border ${border} ${bg} p-4 ${glow}`}>
-                          <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${color}`} />
-                          <div>
-                            <p className={`text-sm font-bold capitalize ${color}`}>{view.verdict.category ?? view.verdict.label}</p>
-                            <p className="mt-0.5 font-mono text-xs text-fog-faint">
-                              {view.verdict.kind === "link"
-                                ? "URL check"
-                                : view.verdict.kind === "email"
-                                  ? "Page text check"
-                                  : "Automatic quick scan"}{" "}
-                              &middot; {Math.round(view.verdict.confidence * 100)}% confidence
-                            </p>
-                          </div>
+                      <div className={`qmail ${vclass}`}>
+                        <div className="row" style={{ color: isUnknown ? "var(--text)" : "var(--v)" }}>
+                          <Icon style={{ color: isUnknown ? "var(--text-lo)" : "var(--v)" }} />
+                          <b>{isUnknown ? "Quick scan unavailable" : `Quick scan: ${result.label}`}</b>
                         </div>
-
-                        {/* Reason */}
-                        <p className="text-xs leading-relaxed text-fog-dim">{view.verdict.reason}</p>
-
-                        {/* Mitigation */}
-                        {view.verdict.mitigation && (
-                          <p className="border-t border-panel-line pt-3 text-xs leading-relaxed text-fog-faint">{view.verdict.mitigation}</p>
-                        )}
-
-                        {/* Legitimate alternatives */}
-                        {view.verdict.legitimateAlternatives.length > 0 && (
-                          <div className="border-t border-panel-line pt-3">
-                            <p className="mb-1.5 text-xs font-medium text-fog-faint">This might be an impersonation of:</p>
-                            {view.verdict.legitimateAlternatives.map((alt) => (
-                              <a
-                                key={alt.url}
-                                href={alt.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block truncate text-xs text-sentinel transition-colors duration-200 hover:text-sentinel-glow hover:underline"
-                              >
-                                {alt.title}
-                              </a>
+                        <p className="muted">
+                          {isUnknown
+                            ? "Run a full scan to investigate this email and every link inside it."
+                            : `Cross-checked with ${signalCount} signal${signalCount === 1 ? "" : "s"}${
+                                result.source.includes("jev") ? " (text model + Jev)" : " (text model only)"
+                              }${linksChecked > 0 ? ` · ${linksChecked} link${linksChecked === 1 ? "" : "s"} checked` : ""}.`}
+                        </p>
+                        {dangerousLinks.length > 0 && (
+                          <ul className="qlinks">
+                            {dangerousLinks.map((l, i) => (
+                              <li key={`${l.domain}-${i}`} className={l.label === "dangerous" ? "v-critical" : "v-medium"} title={l.domain}>
+                                {l.label === "dangerous" ? "⚠" : "?"} {l.domain ?? "unknown link"}
+                                {l.source === "virustotal" ? " — flagged by VirusTotal" : ""}
+                              </li>
                             ))}
-                          </div>
+                          </ul>
                         )}
-
-                        {/* Action buttons */}
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <button
-                            onClick={() => handleViewReport(view.verdict.runId!)}
-                            disabled={!view.verdict.runId}
-                            className="flex items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2.5 text-xs font-medium text-fog transition-all duration-200 hover:border-sentinel/30 hover:bg-panel-raised hover:shadow-glow-sentinel disabled:opacity-40"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            Full report
-                          </button>
-                          <button
-                            onClick={() => setView({ status: "idle", tab })}
-                            className="flex items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2.5 text-xs font-medium text-fog-dim transition-all duration-200 hover:bg-panel-raised"
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Dismiss
-                          </button>
-                        </div>
-
-                        {/* Report & block — only for a real, confirmed-bad verdict */}
-                        {(view.verdict.label === "dangerous" || view.verdict.label === "suspicious") &&
-                          (() => {
-                            const url = view.verdict.checkedUrl;
-                            const rs = reportState.url === url ? reportState : { url, status: "idle" as const };
-                            if (rs.status === "done") {
-                              return (
-                                <p className="flex items-center gap-2 pt-1 text-xs text-fog-faint">
-                                  <Ban className="h-3.5 w-3.5 shrink-0 text-threat-critical" />
-                                  {rs.result.added_to_blocklist ? "Blocked" : "Already blocked"} on this device
-                                  {rs.result.virustotal.reported ? " and reported to VirusTotal." : "."}
-                                </p>
-                              );
-                            }
-                            return (
-                              <div className="pt-1">
-                                <button
-                                  disabled={rs.status === "loading"}
-                                  onClick={() => handleReportBlock(url)}
-                                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-threat-critical/30 bg-threat-critical/5 py-2.5 text-xs font-medium text-threat-critical transition-all duration-200 hover:bg-threat-critical/10 disabled:opacity-40"
-                                >
-                                  {rs.status === "loading" ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Ban className="h-3.5 w-3.5" />
-                                  )}
-                                  Report & block this site
-                                </button>
-                                {rs.status === "error" && <p className="mt-1.5 text-xs text-threat-critical">{rs.message}</p>}
-                              </div>
-                            );
-                          })()}
+                        <button className="btn primary" style={{ width: "100%", marginTop: 11 }} onClick={() => runFullEmailScan(tab, text, links)}>
+                          <span className="lead">
+                            <FileText />
+                          </span>
+                          Check this email
+                        </button>
                       </div>
                     );
                   })()}
               </>
             )}
-        </>
+
+            {/* Error */}
+            {view.status === "error" && (
+              <div className="err">
+                <ShieldAlert />
+                <p>{view.message}</p>
+              </div>
+            )}
+
+            {/* Verdict */}
+            {view.status === "result" && (
+              <VerdictCard
+                verdict={view.verdict}
+                reportState={reportState}
+                onFullReport={() => handleViewReport(view.verdict.runId!)}
+                onRunFullScan={() => handleCheckUrl(tab)}
+                onDismiss={() => setView({ status: "idle", tab })}
+                onReportBlock={handleReportBlock}
+              />
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The verdict hero, split out so it can own the gauge's count-up + ring
+// sweep on mount. For a model-only "quick" verdict there's no saved report
+// to open, so the primary action escalates to a real investigation ("Run
+// full scan") instead of a dead, disabled "Full report" button.
+function VerdictCard({
+  verdict,
+  reportState,
+  onFullReport,
+  onRunFullScan,
+  onDismiss,
+  onReportBlock,
+}: {
+  verdict: TabVerdict;
+  reportState: ReportState;
+  onFullReport: () => void;
+  onRunFullScan: () => void;
+  onDismiss: () => void;
+  onReportBlock: (url: string) => void;
+}) {
+  const { Icon, vclass } = labelMeta(verdict.label);
+  const { risk, sub } = riskInfo(verdict);
+  const shownRisk = useCountUp(risk);
+  const [fill, setFill] = useState(0);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setFill(risk));
+    return () => cancelAnimationFrame(id);
+  }, [risk]);
+
+  const isQuick = verdict.kind === "quick";
+  const kindLabel = verdict.kind === "link" ? "URL check" : verdict.kind === "email" ? "Page text check" : "Quick scan";
+  const isBad = verdict.label === "dangerous" || verdict.label === "suspicious";
+
+  return (
+    <div className={`verdict ${vclass}`}>
+      <div className="vcard">
+        <div className="vcard-top">
+          <div className="gauge" style={{ ["--p" as string]: fill }}>
+            <b>{shownRisk}</b>
+            <s>/100</s>
+          </div>
+          <div className="vhead">
+            <div className="vlabel">
+              <Icon />
+              <b>{verdict.category ?? verdict.label}</b>
+            </div>
+            <div className="vmeta">
+              <span className="pill">{kindLabel}</span>
+              <span>{sub}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Reason */}
+        <p className="vreason">{verdict.reason}</p>
+
+        {/* Mitigation */}
+        {verdict.mitigation && (
+          <div className="vsub">
+            <span className="k">What to do: </span>
+            {verdict.mitigation}
+          </div>
+        )}
+
+        {/* Legitimate alternatives */}
+        {verdict.legitimateAlternatives.length > 0 && (
+          <div className="alts">
+            <div className="h">Likely impersonating</div>
+            {verdict.legitimateAlternatives.map((alt) => (
+              <a key={alt.url} className="alt" href={alt.url} target="_blank" rel="noopener noreferrer">
+                <Globe />
+                <span>{alt.title}</span>
+                <ExternalLink className="ext" width={14} height={14} />
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="vactions">
+          {isQuick ? (
+            <button className="btn primary" onClick={onRunFullScan}>
+              <span className="lead">
+                <Radar />
+              </span>
+              Run full scan
+            </button>
+          ) : (
+            <button className="btn" onClick={onFullReport} disabled={!verdict.runId}>
+              <span className="lead">
+                <ExternalLink />
+              </span>
+              Full report
+            </button>
+          )}
+          <button className="btn ghost" onClick={onDismiss}>
+            <RotateCcw />
+            Dismiss
+          </button>
+        </div>
+
+        {/* Report & block — only for a real, confirmed-bad verdict */}
+        {isBad &&
+          (() => {
+            const url = verdict.checkedUrl;
+            const rs = reportState.url === url ? reportState : { url, status: "idle" as const };
+            if (rs.status === "done") {
+              return (
+                <div className="report-note">
+                  <Ban />
+                  {rs.result.added_to_blocklist ? "Blocked" : "Already blocked"} on this device
+                  {rs.result.virustotal.reported ? " and reported to VirusTotal." : "."}
+                </div>
+              );
+            }
+            return (
+              <>
+                <button
+                  className="btn danger"
+                  style={{ width: "100%", marginTop: 10 }}
+                  disabled={rs.status === "loading"}
+                  onClick={() => onReportBlock(url)}
+                >
+                  {rs.status === "loading" ? <Loader2 className="ae-spin" /> : <Ban />}
+                  Report &amp; block this site
+                </button>
+                {rs.status === "error" && (
+                  <p className="report-note" style={{ color: "var(--critical)" }}>
+                    {rs.message}
+                  </p>
+                )}
+              </>
+            );
+          })()}
       </div>
     </div>
   );

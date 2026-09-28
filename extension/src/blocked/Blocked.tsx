@@ -14,6 +14,8 @@
 import { ArrowLeft, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 
+import { ThemeToggle } from "@/components/ThemeToggle";
+
 function useQueryParam(name: string): string {
   const [value] = useState(() => new URLSearchParams(window.location.search).get(name) ?? "");
   return value;
@@ -50,37 +52,31 @@ export function Blocked() {
   }
 
   return (
-    <div className="glass w-[440px] rounded-2xl border border-threat-critical/30 p-8 shadow-glow-critical">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-threat-critical/15">
-          <ShieldAlert className="h-5 w-5 text-threat-critical" />
-        </div>
-        <div>
-          <p className="font-display text-base font-bold text-threat-critical">Blocked by security-copilot</p>
-          <p className="mt-0.5 font-mono text-xs text-fog-faint">on your personal blocklist</p>
-        </div>
+    <div className="blocked-stage">
+      <div style={{ position: "fixed", top: 20, right: 20, zIndex: 2 }}>
+        <ThemeToggle />
       </div>
-
-      <p className="mt-5 text-sm leading-relaxed text-fog-dim">
-        <span className="break-all font-mono text-fog">{hostnameOf(url) || url}</span> was previously reported and
-        added to your blocklist, so security-copilot stopped this page from loading.
-      </p>
-
-      <div className="mt-6 flex items-center gap-3">
-        <button
-          onClick={goBack}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-panel-line bg-panel py-2.5 text-xs font-medium text-fog transition-all duration-200 hover:border-sentinel/30 hover:bg-panel-raised"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Go back
-        </button>
-        <button
-          onClick={proceedAnyway}
-          disabled={proceeding || !url}
-          className="flex-1 rounded-lg py-2.5 text-xs font-medium text-fog-faint underline-offset-2 transition-colors duration-200 hover:text-fog-dim hover:underline disabled:opacity-40"
-        >
-          {proceeding ? "Loading…" : "Proceed anyway"}
-        </button>
+      <div className="blocked">
+        <div className="icon">
+          <ShieldAlert />
+        </div>
+        <div className="ey">Blocked · personal blocklist</div>
+        <h1>This site was stopped before it loaded</h1>
+        <p>
+          <span className="dom">{hostnameOf(url) || url}</span> was previously reported and added to your blocklist, so
+          Security Copilot prevented this page from opening.
+        </p>
+        <div className="row">
+          <button className="btn primary" onClick={goBack}>
+            <span className="lead">
+              <ArrowLeft />
+            </span>
+            Go back to safety
+          </button>
+          <button className="btn ghost" onClick={proceedAnyway} disabled={proceeding || !url}>
+            {proceeding ? "Loading…" : "Proceed anyway"}
+          </button>
+        </div>
       </div>
     </div>
   );

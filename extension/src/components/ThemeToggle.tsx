@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { getTheme, setTheme, type Theme } from "@/lib/theme";
 
-/** A sun/moon button that flips the persisted light/dark theme. */
+/** A sun/moon icon button that flips the persisted light/dark theme. */
 export function ThemeToggle() {
   const [theme, setThemeState] = useState<Theme>("dark");
 
@@ -22,9 +22,9 @@ export function ThemeToggle() {
       onClick={toggle}
       title={theme === "dark" ? "Switch to light" : "Switch to dark"}
       aria-label="Toggle theme"
-      className="rounded-md p-1.5 text-fog-faint transition-colors duration-200 hover:bg-panel-raised hover:text-fog"
+      className="ico-btn"
     >
-      {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+      {theme === "dark" ? <Moon /> : <Sun />}
     </button>
   );
 }

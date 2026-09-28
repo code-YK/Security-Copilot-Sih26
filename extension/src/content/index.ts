@@ -34,95 +34,115 @@
     shadow = host.attachShadow({ mode: "closed" });
 
     const style = document.createElement("style");
+    // Same "night desk" palette as the dashboard and popup: an ink card,
+    // a verdict-coloured rail, bone primary button, and the copilot's UV
+    // for the live "investigating" state. The page's own fonts can't be
+    // relied on, so this stays on the system stack with Archivo first.
     style.textContent = `
       :host { all: initial; }
       .card {
+        --tone: #8E9CB8;
         position: fixed;
         top: 16px;
         right: 16px;
         z-index: 2147483647;
-        width: 320px;
-        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        width: 330px;
+        overflow: hidden;
+        font-family: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         font-size: 13px;
         line-height: 1.5;
-        color: #E2E8F0;
-        background: #1A2235;
-        border: 1px solid #2D3A52;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        padding: 14px 16px;
-        animation: sc-slide-in 0.25s ease-out;
+        color: #F1EFE8;
+        background: #101217;
+        border: 1px solid #2E333E;
+        border-radius: 16px;
+        box-shadow: 0 24px 60px -26px var(--tone), 0 18px 40px -18px rgba(0,0,0,0.75);
+        padding: 15px 18px 16px 20px;
+        animation: sc-slide-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
       }
-      .card.dangerous { border-color: #FB7185; box-shadow: 0 8px 32px rgba(251,113,133,0.25); }
-      .card.suspicious { border-color: #FBBF24; box-shadow: 0 8px 32px rgba(251,191,36,0.20); }
-      .card.safe { border-color: #34D399; box-shadow: 0 8px 32px rgba(52,211,153,0.18); width: auto; max-width: 260px; padding: 10px 14px; animation: sc-slide-in 0.2s ease-out, sc-fade-out 0.35s ease-in 1.25s forwards; }
+      .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--tone); }
+      .card.dangerous { --tone: #FF5065; }
+      .card.suspicious { --tone: #F6BB45; }
+      .card.safe { --tone: #43DC9C; width: auto; max-width: 270px; padding: 11px 16px 11px 18px; animation: sc-slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1), sc-fade-out 0.35s ease-in 1.25s forwards; }
       @keyframes sc-slide-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
       @keyframes sc-fade-out { from { opacity: 1; } to { opacity: 0; } }
-      .row { display: flex; align-items: flex-start; gap: 10px; }
-      .icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
-      .title { font-weight: 700; font-size: 13px; letter-spacing: 0.02em; }
-      .title.dangerous { color: #FB7185; }
-      .title.suspicious { color: #FBBF24; }
-      .title.safe { color: #34D399; }
-      .sub { color: #94A3B8; font-size: 11px; margin-top: 2px; }
-      .msg { margin-top: 8px; color: #C7D2E3; }
+      .row { display: flex; align-items: flex-start; gap: 11px; }
+      .icon { flex-shrink: 0; color: var(--tone); line-height: 0; margin-top: 1px; }
+      .icon svg { width: 20px; height: 20px; }
+      .title { font-weight: 760; font-size: 14px; letter-spacing: -0.01em; color: var(--tone); }
+      .sub { color: #7C808B; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 3px; }
+      .msg { margin-top: 9px; color: #AAADB6; }
       .progress {
         display: flex;
         align-items: center;
-        gap: 7px;
-        margin-top: 10px;
-        padding: 7px 10px;
-        border-radius: 8px;
-        background: #161D2E;
-        border: 1px solid #2D3A52;
-        color: #94A3B8;
-        font-size: 11.5px;
+        gap: 8px;
+        margin-top: 11px;
+        padding: 8px 11px;
+        border-radius: 10px;
+        background: #07080A;
+        border: 1px solid rgba(149,133,255,0.38);
+        color: #AAADB6;
+        font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        font-size: 11px;
         line-height: 1.4;
       }
       .progress .spinner { margin-right: 0; flex-shrink: 0; }
-      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      .actions { display: flex; gap: 8px; margin-top: 13px; }
       button {
         flex: 1;
         font-family: inherit;
-        font-size: 12px;
-        font-weight: 600;
-        padding: 7px 10px;
-        border-radius: 8px;
+        font-size: 12.5px;
+        font-weight: 650;
+        padding: 8px 12px;
+        border-radius: 999px;
         cursor: pointer;
-        border: 1px solid #2D3A52;
-        background: #212B42;
-        color: #E2E8F0;
-        transition: background 0.15s ease, border-color 0.15s ease;
+        border: 1px solid #2E333E;
+        background: transparent;
+        color: #F1EFE8;
+        transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
       }
-      button.primary { background: #6366F1; border-color: #6366F1; color: white; }
-      button:hover { filter: brightness(1.1); }
+      button.primary { background: #F1EFE8; border-color: #F1EFE8; color: #0A0B0E; }
+      button:hover:not(:disabled) { border-color: #4A505C; }
+      button.primary:hover:not(:disabled) { box-shadow: 0 0 0 4px rgba(241,239,232,0.16); }
       button:disabled { opacity: 0.6; cursor: default; }
       .close {
         position: absolute; top: 10px; right: 12px;
-        background: none; border: none; color: #64748B;
-        font-size: 16px; padding: 0; width: auto; flex: none;
+        background: none; border: none; color: #7C808B;
+        font-size: 17px; padding: 0; width: auto; flex: none;
         line-height: 1;
       }
+      .close:hover { color: #F1EFE8; }
       .spinner {
         display: inline-block;
         width: 11px; height: 11px;
         margin-right: 6px;
         vertical-align: -1px;
-        border: 2px solid rgba(255,255,255,0.35);
-        border-top-color: #fff;
+        border: 2px solid rgba(149,133,255,0.3);
+        border-top-color: #9585FF;
         border-radius: 50%;
         animation: sc-spin 0.7s linear infinite;
       }
       @keyframes sc-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .card, .card.safe { animation: none; }
+      }
     `;
     shadow.appendChild(style);
     return shadow;
   }
 
+  // Inline SVG (stroke = currentColor, so the verdict tone colours it) —
+  // emoji render differently on every OS and can't take the tone.
+  const ICONS = {
+    dangerous:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 2h8.2L22 7.9v8.2L16.1 22H7.9L2 16.1V7.9z"/><path d="m15 9-6 6M9 9l6 6"/></svg>',
+    suspicious:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+    safe:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>',
+  } as const;
+
   function labelIcon(label: Label): string {
-    if (label === "dangerous") return "⛔";
-    if (label === "suspicious") return "⚠️";
-    return "✅";
+    return ICONS[label];
   }
 
   function labelTitle(label: Label): string {
@@ -253,7 +273,7 @@
     card.innerHTML = `
       <button class="close" aria-label="Dismiss">&times;</button>
       <div class="row">
-        <span class="icon">${label === "dangerous" ? "⛔" : "⚠️"}</span>
+        <span class="icon">${labelIcon(label === "dangerous" ? "dangerous" : "suspicious")}</span>
         <div>
           <div class="title ${titleClass}">${emailLabelTitle(label)}</div>
           <div class="sub">security-copilot &middot; ${Math.round(confidence * 100)}% confidence &middot; email scan</div>
