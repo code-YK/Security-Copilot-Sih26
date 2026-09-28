@@ -238,36 +238,47 @@ async def inspect_website(url: str) -> tuple[dict, dict]:
             page = await context.new_page()
             page.on("request", _record_request)
 
+            # Await only DOM-ready, not full network-idle. `networkidle` never
+            # fires on sites that keep a connection open (analytics, chat
+            # widgets, GitHub's live updates, many phishing kits) — it would
+            # time out and, in the old code, throw away a page that had
+            # actually rendered fine, leaving no screenshot at all. So we
+            # commit on `domcontentloaded`, then give late assets a short,
+            # best-effort moment, and capture whatever rendered regardless.
+            timeout_ms = settings.SANDBOX_TIMEOUT_SECONDS * 1000
+            nav_error: str | None = None
+            response = None
             try:
-                response = await page.goto(
-                    url, timeout=settings.SANDBOX_TIMEOUT_SECONDS * 1000, wait_until="networkidle"
-                )
-            except Exception as exc:  # noqa: BLE001 - a page that won't load is itself evidence, not a tool crash
-                full = {
-                    "final_url": url,
-                    "navigation_error": str(exc),
-                    "redirect_chain": [],
-                    "screenshot_base64": None,
-                    "page_text": "",
-                    "forms": [],
-                    "links": [],
-                    "network_requests": network_requests,
-                    "page_title": None,
-                    "asset_same_origin_count": 0,
-                    "asset_cross_origin_count": 0,
-                    "asset_dominant_foreign_origin": None,
-                    "response_headers": {},
-                    "server_ip": None,
-                }
-                return _for_llm(full), full
+                response = await page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+            except Exception as exc:  # noqa: BLE001 - a page that won't load is itself evidence
+                nav_error = str(exc)
 
-            screenshot_bytes = await page.screenshot(type="png")
-            page_text = await page.inner_text("body")
-            forms = await page.eval_on_selector_all("form", _FORM_EXTRACT_JS)
-            raw_links = await page.eval_on_selector_all("a", _LINK_EXTRACT_JS)
+            # Best-effort settle for lazy assets — never fatal (this is exactly
+            # the wait that used to fail the whole inspection).
+            try:
+                await page.wait_for_load_state("networkidle", timeout=min(4000, timeout_ms))
+            except Exception:  # noqa: BLE001
+                pass
+
+            async def _safe(coro, default):
+                try:
+                    return await coro
+                except Exception:  # noqa: BLE001 - a partial page still yields useful evidence
+                    return default
+
+            # Grab a screenshot of whatever is on screen, even after a soft
+            # navigation error — a rendered-but-not-idle page is still evidence.
+            screenshot_bytes = await _safe(page.screenshot(type="png", timeout=8000), None)
+            if screenshot_bytes is None and nav_error is None:
+                # A hard failure to even screenshot a page that "loaded" is
+                # itself worth surfacing as the navigation error.
+                nav_error = "Page loaded but could not be captured."
+            page_text = await _safe(page.inner_text("body"), "")
+            forms = await _safe(page.eval_on_selector_all("form", _FORM_EXTRACT_JS), [])
+            raw_links = await _safe(page.eval_on_selector_all("a", _LINK_EXTRACT_JS), [])
             links = _dedupe_links(raw_links, page.url, settings.SANDBOX_MAX_LINKS)
             redirect_chain = await _get_redirect_chain(response) if response else [{"url": url, "status": None}]
-            raw_assets = await page.evaluate(_ASSET_EXTRACT_JS)
+            raw_assets = await _safe(page.evaluate(_ASSET_EXTRACT_JS), {})
             asset_summary = _summarize_assets(raw_assets, page.url)
             deployment = await _get_deployment_info(response) if response else {"response_headers": {}, "server_ip": None}
 
@@ -275,7 +286,7 @@ async def inspect_website(url: str) -> tuple[dict, dict]:
                 "final_url": page.url,
                 "status_code": response.status if response else None,
                 "redirect_chain": redirect_chain,
-                "screenshot_base64": base64.b64encode(screenshot_bytes).decode("ascii"),
+                "screenshot_base64": base64.b64encode(screenshot_bytes).decode("ascii") if screenshot_bytes else None,
                 "page_text": page_text[: settings.SANDBOX_MAX_PAGE_TEXT_CHARS],
                 "forms": forms,
                 "links": links,
@@ -283,6 +294,18 @@ async def inspect_website(url: str) -> tuple[dict, dict]:
                 **asset_summary,
                 **deployment,
             }
+            # A domain that doesn't resolve (or refuses the connection) lands
+            # Chromium on its own chrome-error:// page — which *does*
+            # screenshot fine. That capture is Chrome's error screen, not the
+            # site, so treat it as the failed navigation it is.
+            if page.url.startswith("chrome-error://"):
+                full["final_url"] = url
+                full["screenshot_base64"] = None
+                nav_error = nav_error or "net::ERR_NAME_NOT_RESOLVED (landed on the browser's error page)"
+            # Otherwise only report a navigation error when we truly captured
+            # nothing — a screenshot means the page rendered, whatever the load state.
+            if nav_error and not full["screenshot_base64"]:
+                full["navigation_error"] = nav_error
             return _for_llm(full), full
     except Exception as exc:  # noqa: BLE001 - never let a sandbox crash take down the agent loop
         logger.warning("inspect_website failed for %s: %s", url, exc)

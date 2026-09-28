@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from email.utils import parseaddr
 from itertools import combinations
 from pathlib import Path
 
@@ -25,6 +26,16 @@ from history import get_run, list_run_details
 from utils.validators import extract_domain, is_ip_address
 
 _BENIGN_LABELS = {"legitimate", "safe"}
+
+
+def _address(header_value: str | None) -> str | None:
+    """The bare lowercase address from a header value such as
+    'Rajesh Verma (CEO) <rajesh.verma@company-hq.com>'. Splitting the raw
+    value on '@' kept the trailing '>' ("company-hq.com>"), and storing the
+    whole display string meant one sender under two display names never
+    correlated — nor matched correlate_entity's bare-address lookups."""
+    address = parseaddr(header_value or "")[1].strip().lower()
+    return address if "@" in address else None
 
 
 def _email_domain(address: str | None) -> str | None:
@@ -48,9 +59,10 @@ def entities_for_run(run: dict) -> set[tuple[str, str]]:
         tool_name, artifact, args = call.get("tool"), call.get("artifact") or {}, call.get("args") or {}
         if tool_name == "analyze_email_headers" and artifact.get("available"):
             for key in ("from", "reply_to", "return_path"):
-                if artifact.get(key):
-                    found.add(("sender", artifact[key].lower()))
-                    add_host(_email_domain(artifact[key]))
+                address = _address(artifact.get(key))
+                if address:
+                    found.add(("sender", address))
+                    add_host(_email_domain(address))
             if artifact.get("origin_ip"):
                 found.add(("ip", artifact["origin_ip"]))
         elif tool_name == "inspect_website":

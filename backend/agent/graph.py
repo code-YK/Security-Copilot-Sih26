@@ -208,15 +208,22 @@ async def stream_case_traced(
     yield {"type": "progress", "label": "Starting investigation..."}
 
     try:
-        async for step in graph.astream(
-            initial_state, config={"recursion_limit": recursion_limit}, stream_mode="updates"
+        async for mode, step in graph.astream(
+            initial_state, config={"recursion_limit": recursion_limit}, stream_mode=["updates", "custom"]
         ):
+            # "custom" carries forensics_node's per-step announcements, which
+            # arrive as each check *starts* — "updates" only reports a node
+            # once all of its checks are done.
+            if mode == "custom":
+                if isinstance(step, dict) and step.get("forensics_step"):
+                    yield {"type": "progress", "label": _friendly_step(step["forensics_step"], 1)}
+                continue
+
             for node_name, update in step.items():
                 update = update or {}
 
                 if node_name == "forensics":
                     for name, result in (update.get("forensics") or {}).items():
-                        yield {"type": "progress", "label": _friendly_step(name, 1)}
                         tool_call_records.append({"tool": name, "args": {}, "artifact": result, "screenshot_path": None})
 
                 elif node_name == "agent":

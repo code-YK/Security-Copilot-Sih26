@@ -54,6 +54,16 @@ async def test_eml_runs_forensics_before_agent():
     events = [e async for e in stream_case_traced("email", load_fixture("phish_paypal.eml"), email_links=[])]
     done = events[-1]
     assert done["type"] == "done"
+    # Each forensic check streams its own progress label as it starts, in order.
+    labels = [e["label"] for e in events if e["type"] == "progress"]
+    forensic = [l for l in labels if any(k in l for k in ("delivery path", "SPF, DKIM", "VirusTotal & domain", "Geolocating", "attachments"))]
+    assert forensic[:5] == [
+        "Tracing the email's delivery path from its headers...",
+        "Checking SPF, DKIM and DMARC...",
+        "Checking VirusTotal & domain registration history...",
+        "Geolocating the origin IP & checking for VPN/TOR/hosting...",
+        "Statically inspecting attachments...",
+    ]
     run = get_run(done["run_id"])
     tools = [c["tool"] for c in run["tool_calls"]]
     assert tools[:5] == ["analyze_email_headers", "validate_email_auth", "domain_reputation", "geolocate_ip", "scan_attachments"]

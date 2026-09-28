@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 
+from langgraph.config import get_stream_writer
+
 from agent.state import AgentState
 from logger import get_logger
 from tools.attachment_scanner import scan_attachments
@@ -23,7 +25,22 @@ from tools.header_analyzer import analyze_email_headers, extract_body, looks_lik
 logger = get_logger(__name__)
 
 
+def _announce(step: str) -> None:
+    """Tell a streaming caller which forensic step is starting *now*.
+
+    LangGraph's "updates" stream only reports a node once it has finished,
+    so without this all five checks surfaced together at the end of the
+    node (~15s in) and live progress sat on "Starting investigation" until
+    then. graph.py's stream_case_traced also listens on the "custom" stream
+    mode and turns these into progress labels as each step begins."""
+    try:
+        get_stream_writer()({"forensics_step": step})
+    except Exception:  # noqa: BLE001 — not inside a streaming run (e.g. a direct ainvoke): nothing to tell
+        pass
+
+
 async def _safe(tool, args: dict) -> dict:
+    _announce(tool.name)
     try:
         return await tool.ainvoke(args)
     except Exception as exc:  # noqa: BLE001 — one failed check must not sink the investigation

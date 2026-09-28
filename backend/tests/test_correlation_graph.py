@@ -51,6 +51,21 @@ def test_entities():
             ("domain", "login.evil.test"), ("ip", "203.0.113.5")} <= ents
 
 
+def test_entities_strip_display_names():
+    run = {"case_type": "email", "raw_input": "", "tool_calls": [
+        {"tool": "analyze_email_headers", "args": {}, "artifact": {
+            "available": True,
+            "from": "Rajesh Verma (CEO) <Rajesh.Verma@Company-HQ.com>",
+            "reply_to": "<ceo.office@gmail.com>",
+        }},
+    ]}
+    ents = cg.entities_for_run(run)
+    assert ("sender", "rajesh.verma@company-hq.com") in ents
+    assert ("domain", "company-hq.com") in ents
+    assert ("sender", "ceo.office@gmail.com") in ents
+    assert not any(v.endswith(">") or " " in v for _, v in ents)
+
+
 def test_graph_links_cases_through_shared_ip(history):
     result = cg.connected_to("185.220.101.34")
     assert result["case_count"] == 2 and result["malicious_case_count"] == 2
