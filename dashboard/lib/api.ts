@@ -10,11 +10,12 @@ import type { CheckLinksStreamEvent } from '@/lib/types'
 
 const STORAGE_KEY = 'apiBaseUrl'
 // A user-set base URL in Settings (localStorage) always wins. Absent that, the
-// launch scripts inject the backend's real address via NEXT_PUBLIC_API_BASE_URL
-// (they run it on :8010, not this default); the hardcoded value is the last
-// resort for `pnpm dev` with nothing configured.
+// launch scripts inject the backend's real address via NEXT_PUBLIC_API_BASE_URL.
+// The hardcoded fallback must match where the backend actually runs (:8010 —
+// see start_all.bash and backend's uvicorn --port 8010) so a plain `pnpm dev`
+// with nothing configured still reaches it.
 const ENV_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
-const DEFAULT_BASE_URL = ENV_BASE_URL || 'http://localhost:8000'
+const DEFAULT_BASE_URL = ENV_BASE_URL || 'http://localhost:8010'
 
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_BASE_URL

@@ -3,36 +3,44 @@
 /**
  * Shared dark/light theme state, persisted to localStorage.
  *
- * Both `app/page.tsx` and `app/run/[id]/page.tsx` used to keep their own
- * `useState(true)` for this — meaning every navigation between the list
- * view and a run's detail view (a full route change, so each page mounts
- * fresh) silently reset the theme back to the hardcoded default, even if
- * the user had just switched to light. One shared provider, mounted once
- * in the root layout, is what makes the choice survive navigation.
+ * One provider, mounted once in the root layout, so the choice survives
+ * navigation between the dashboard and a case page. The theme lives on
+ * `<html data-theme>` (not a wrapper div) so every surface — including the
+ * page background behind overscroll — flips together, and the tiny inline
+ * script in app/layout.tsx sets that attribute before first paint so a
+ * saved light theme never flashes dark first.
  */
 import { createContext, useContext, useEffect, useState } from 'react'
 
-const STORAGE_KEY = 'scTheme'
+export const THEME_STORAGE_KEY = 'scTheme'
 
 type ThemeContextValue = { dark: boolean; toggleTheme: () => void }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-// Read synchronously where possible (client-side only) so the first
-// render already matches what was saved, instead of flashing dark and
-// then flipping to light a tick later.
-function readInitialTheme(): boolean {
-  if (typeof window === 'undefined') return true
-  const stored = window.localStorage.getItem(STORAGE_KEY)
-  return stored !== 'light'
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [dark, setDark] = useState(readInitialTheme)
+  // Server and first client render must agree (dark), or React reports a
+  // hydration mismatch on the toggle icon. The real theme is already on
+  // <html> from the bootstrap script, so adopt it right after mount — and
+  // only start writing back once we have, or the default would overwrite a
+  // saved light theme with dark.
+  const [dark, setDark] = useState(true)
+  const [synced, setSynced] = useState(false)
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light')
-  }, [dark])
+    setDark(document.documentElement.dataset.theme !== 'light')
+    setSynced(true)
+  }, [])
+
+  useEffect(() => {
+    if (!synced) return
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, dark ? 'dark' : 'light')
+    } catch {
+      // Storage blocked (private mode, site data off) — the theme still applies for this visit.
+    }
+  }, [dark, synced])
 
   function toggleTheme() {
     setDark((d) => !d)

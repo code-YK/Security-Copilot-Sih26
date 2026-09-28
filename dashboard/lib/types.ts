@@ -259,17 +259,43 @@ export interface Geolocation {
   reputation?: { available: boolean; abuse_confidence_score?: number; total_reports?: number }
 }
 
+/** The structural PDF read (backend/tools/attachment_scanner.py::_pdf_extract),
+ * plus what _evaluate_pdf_content adds: a verdict per extracted link and a
+ * phishing-language score for the extracted text. The file is never
+ * rendered or executed — this is parsed structure only. */
+export interface PdfSandbox {
+  available: boolean
+  detail?: string
+  page_count?: number
+  text_excerpt?: string
+  text_truncated?: boolean
+  links?: string[]
+  has_javascript?: boolean
+  has_launch_action?: boolean
+  has_embedded_files?: boolean
+  link_verdicts?: { url: string; label: string; confidence: number; source: string; domain?: string }[]
+  text_classification?: { phishing_score?: number; label?: string }
+}
+
+export interface AttachmentResult {
+  filename: string
+  size: number
+  sha256: string
+  md5?: string
+  declared_type?: string | null
+  detected_mime: string | null
+  detected_extension?: string | null
+  claimed_extension: string | null
+  macros?: { has_macros: boolean; autoexec?: boolean } | null
+  clamav?: { available: boolean; infected?: boolean; signature?: string; detail?: string }
+  pdf?: PdfSandbox | null
+  flags: HeaderFlag[]
+}
+
 export interface AttachmentScan {
   available: boolean
   count?: number
-  attachments?: {
-    filename: string
-    size: number
-    sha256: string
-    detected_mime: string | null
-    claimed_extension: string | null
-    flags: HeaderFlag[]
-  }[]
+  attachments?: AttachmentResult[]
 }
 
 /** GET /runs/{id}/graph (backend/tools/correlation_graph.py). */
